@@ -1,0 +1,19 @@
+panel.example.com {
+  encode zstd gzip
+
+  @backendPaths {
+    path /api/* /healthz /docs* /openapi.json
+  }
+
+  handle @backendPaths {
+    reverse_proxy http://backend:8000 {
+      header_up X-Forwarded-Proto https
+      header_up X-Forwarded-Host {host}
+      header_up X-Forwarded-For {remote_host}
+    }
+  }
+
+  handle {
+    reverse_proxy http://frontend:80
+  }
+}

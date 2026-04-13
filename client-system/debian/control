@@ -1,0 +1,10 @@
+Package: kpanel-client
+Version: 0.1.0
+Section: misc
+Priority: optional
+Architecture: all
+Maintainer: KPanel2 <ops@kpanel.local>
+Depends: python3, python3-venv, python3-tk, network-manager, chromium-browser
+Description: KPanel Raspberry Pi client service
+ KPanel client polls backend registration/config endpoints and launches
+ a configured URL in Chromium kiosk mode.
