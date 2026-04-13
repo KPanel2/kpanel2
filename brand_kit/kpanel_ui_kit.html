@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KPanel UI Kit</title>
+<style>
+:root {
+  --bg:#07111D;
+  --panel:#0F233D;
+  --panel-2:#0B1D33;
+  --text:#F4FBFF;
+  --muted:#9BB3C9;
+  --primary:#22C7FF;
+  --primary-2:#1A6DFF;
+  --accent:#8BE71E;
+  --border:rgba(108,195,255,.18);
+  --radius:22px;
+  --shadow:0 20px 50px rgba(0,0,0,.45);
+}
+body {
+  margin:0;
+  background:linear-gradient(180deg,#07111D,#0A1B2F);
+  color:var(--text);
+  font-family:Inter;
+}
+.wrap { max-width:1200px; margin:auto; padding:32px; }
+.nav { display:flex; justify-content:space-between; margin-bottom:30px; }
+.brand { font-weight:700; }
+.links { color:var(--muted); display:flex; gap:12px; }
+.panel {
+  background:linear-gradient(180deg,var(--panel),var(--panel-2));
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+}
+.hero { display:grid; grid-template-columns:1.1fr .9fr; gap:28px; }
+.hero-copy { padding:40px; }
+.kicker { color:var(--accent); font-size:12px; text-transform:uppercase; }
+h1 { font-size:60px; }
+p { color:var(--muted); }
+.btn {
+  padding:14px 18px;
+  border-radius:14px;
+  border:1px solid var(--border);
+}
+.btn.primary {
+  background:linear-gradient(135deg,var(--primary),var(--primary-2));
+  border:none;
+  color:white;
+}
+.preview { display:grid; place-items:center; min-height:400px; }
+.section-title { color:var(--primary); margin:30px 0 16px; }
+.grid-3 { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
+.card { padding:24px; }
+.metric { font-size:36px; font-weight:800; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="nav">
+    <div class="brand">KPanel</div>
+    <div class="links">
+      <span>Devices</span>
+      <span>Config</span>
+      <span>Docs</span>
+    </div>
+  </div>
+
+  <section class="hero">
+    <div class="panel hero-copy">
+      <div class="kicker">Home automation</div>
+      <h1>Control your home from any wall panel.</h1>
+      <p>KPanel turns Raspberry Pi clients into controllers.</p>
+      <button class="btn primary">Deploy</button>
+      <button class="btn">Preview</button>
+    </div>
+
+    <div class="panel preview">
+      <div style="color:var(--accent)">KPanel Display</div>
+    </div>
+  </section>
+
+  <div class="section-title">Components</div>
+
+  <div class="grid-3">
+    <div class="panel card">
+      <div class="kicker">Buttons</div>
+      <button class="btn primary">Primary</button>
+      <button class="btn">Secondary</button>
+    </div>
+
+    <div class="panel card">
+      <div class="kicker">Stats</div>
+      <div class="metric">99.9%</div>
+      <div class="muted">System uptime</div>
+    </div>
+
+    <div class="panel card">
+      <div class="kicker">Inputs</div>
+      <input placeholder="Device URL" style="width:100%;padding:12px;border-radius:12px;border:1px solid var(--border);background:#0B1D33;color:white;">
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

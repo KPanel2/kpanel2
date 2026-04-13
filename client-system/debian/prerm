@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SERVICE_NAME=kpanel-client.service
+
+if systemctl list-unit-files | grep -q "$SERVICE_NAME"; then
+  systemctl stop "$SERVICE_NAME" || true
+  systemctl disable "$SERVICE_NAME" || true
+fi

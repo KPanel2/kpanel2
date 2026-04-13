@@ -1,0 +1,24 @@
+[Unit]
+Description=KPanel Client Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/opt/kpanel-client
+Environment=KPANEL_DEVICE_ID=${HOSTNAME}
+Environment=KPANEL_API_BASE_URL_OVERRIDE=
+Environment=KPANEL_STATE_PATH=/opt/kpanel-client/device-state.json
+Environment=KPANEL_WIFI_ENABLED=true
+Environment=KPANEL_WIFI_UI_ENABLED=true
+Environment=KPANEL_WIFI_CONNECT_TIMEOUT_SEC=25
+Environment=KPANEL_HOTSPOT_FALLBACK_ENABLED=true
+Environment=KPANEL_HOTSPOT_SSID=KPanel-Recovery
+Environment=KPANEL_HOTSPOT_PASSWORD=kpanel12345
+ExecStart=/opt/kpanel-client/.venv/bin/python -m kpanel_client.main
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,865 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KPanel Account Portal</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&family=Space+Grotesk:wght@600;700;800&display=swap');
+
+    :root {
+      --bg: #07111d;
+      --surface: #0f233d;
+      --surface-2: #0b1d33;
+      --surface-3: rgba(7, 17, 29, 0.48);
+      --text: #f4fbff;
+      --muted: #9bb3c9;
+      --primary: #22c7ff;
+      --primary-2: #1a6dff;
+      --accent: #8be71e;
+      --danger: #ff6b7a;
+      --border: rgba(108, 195, 255, 0.18);
+      --radius: 22px;
+      --shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Inter", "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(34, 199, 255, 0.18), transparent 28%),
+        radial-gradient(circle at bottom right, rgba(26, 109, 255, 0.20), transparent 32%),
+        linear-gradient(180deg, var(--bg), #0a1b2f 62%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .shell {
+      width: min(1260px, calc(100% - 36px));
+      margin: 0 auto;
+      padding: 24px 0 48px;
+      animation: rise 420ms ease-out;
+    }
+
+    .nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 24px;
+      margin-bottom: 26px;
+      background: rgba(11, 29, 51, 0.48);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      backdrop-filter: blur(7px);
+      padding: 14px 18px;
+      box-shadow: 0 14px 28px rgba(0, 0, 0, 0.24);
+    }
+
+    .brand {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .brand-mark {
+      width: 120px;
+      height: 120px;
+      position: relative;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+    }
+
+    .brand-mark::before {
+      content: "";
+      position: absolute;
+      inset: -2px;
+      border-radius: 50%;
+      background: radial-gradient(
+        circle,
+        rgba(255, 255, 255, 0.68) 0%,
+        rgba(255, 255, 255, 0.44) 30%,
+        rgba(255, 255, 255, 0.21) 54%,
+        rgba(255, 255, 255, 0.07) 72%,
+        rgba(255, 255, 255, 0) 88%
+      );
+      filter: blur(13px);
+      z-index: 0;
+    }
+
+    .brand-mark img {
+      position: relative;
+      z-index: 1;
+      width: 102px;
+      height: 102px;
+      object-fit: contain;
+      filter: drop-shadow(0 9px 16px rgba(0, 0, 0, 0.36));
+    }
+
+    .kicker {
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      font-size: 0.72rem;
+      font-weight: 800;
+    }
+
+    h1, h2, h3 {
+      font-family: "Space Grotesk", "Inter", sans-serif;
+      letter-spacing: -0.04em;
+      margin: 0;
+    }
+
+    .brand h1 {
+      font-size: clamp(1.8rem, 3.2vw, 2.6rem);
+      line-height: 1;
+      margin-top: 2px;
+    }
+
+    .nav-copy {
+      max-width: 420px;
+      color: var(--muted);
+      text-align: right;
+      line-height: 1.55;
+      font-size: 0.95rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+      gap: 24px;
+    }
+
+    .panel {
+      background: linear-gradient(180deg, var(--surface), var(--surface-2));
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .hero {
+      padding: 28px;
+    }
+
+    .hero p,
+    .copy,
+    .muted {
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .copy {
+      margin-top: 8px;
+      margin-bottom: 18px;
+    }
+
+    .title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 14px;
+      margin-bottom: 4px;
+    }
+
+    .section-title {
+      color: var(--primary);
+      font-size: 1.04rem;
+      font-weight: 800;
+      margin-bottom: 12px;
+    }
+
+    .stack {
+      display: grid;
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--surface-3);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 18px;
+      animation: rise 460ms ease-out;
+    }
+
+    .metric {
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: var(--text);
+      margin: 6px 0 8px;
+    }
+
+    .status,
+    .message {
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      padding: 16px 18px;
+      white-space: pre-wrap;
+      line-height: 1.55;
+      font-size: 0.95rem;
+    }
+
+    .status.pending,
+    .message.pending { background: rgba(13, 154, 141, 0.1); }
+    .status.success,
+    .message.success {
+      background: rgba(18, 133, 107, 0.12);
+      border-color: rgba(18, 133, 107, 0.34);
+    }
+    .status.error,
+    .message.error {
+      background: rgba(209, 67, 67, 0.1);
+      border-color: rgba(209, 67, 67, 0.32);
+    }
+
+    form { display: grid; gap: 14px; }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .field { display: grid; gap: 8px; }
+    .field.full { grid-column: 1 / -1; }
+
+    label {
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+
+    input {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px 16px;
+      font-size: 1rem;
+      color: var(--text);
+      background: rgba(11, 29, 51, 0.88);
+      outline: none;
+    }
+
+    input::placeholder { color: rgba(155, 179, 201, 0.76); }
+    input:focus {
+      border-color: rgba(34, 199, 255, 0.55);
+      box-shadow: 0 0 0 3px rgba(34, 199, 255, 0.14);
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+
+    button,
+    .provider-button {
+      border: none;
+      border-radius: 14px;
+      padding: 14px 18px;
+      font-size: 0.96rem;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: filter 0.15s ease;
+    }
+
+    button:hover,
+    .provider-button:hover { filter: brightness(1.05); }
+
+    .primary {
+      background: linear-gradient(135deg, var(--primary), var(--primary-2));
+      color: #fff;
+      box-shadow: 0 14px 22px rgba(26, 109, 255, 0.28);
+    }
+
+    .secondary {
+      background: rgba(11, 29, 51, 0.88);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .provider-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .provider-button {
+      background: rgba(11, 29, 51, 0.88);
+      color: var(--text);
+      border: 1px solid var(--border);
+      width: 100%;
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .pill {
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(11, 29, 51, 0.82);
+      color: var(--muted);
+      padding: 8px 12px;
+      font-size: 0.86rem;
+      font-weight: 600;
+    }
+
+    .device-list { display: grid; gap: 12px; }
+
+    .device-card {
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      background: rgba(7, 17, 29, 0.38);
+      padding: 16px 18px;
+    }
+
+    .device-card strong {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+
+    code {
+      color: var(--primary);
+      font-family: "JetBrains Mono", monospace;
+    }
+
+    .empty {
+      color: var(--muted);
+      padding: 18px;
+      border-radius: 18px;
+      border: 1px dashed var(--border);
+      background: rgba(7, 17, 29, 0.18);
+    }
+
+    .feature-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .feature-list div {
+      border-radius: 14px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      background: rgba(11, 29, 51, 0.7);
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    @keyframes rise {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 960px) {
+      .grid { grid-template-columns: 1fr; }
+      .nav { flex-direction: column; align-items: flex-start; }
+      .nav-copy { text-align: left; }
+      .form-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="nav">
+      <div class="brand">
+        <div class="brand-mark">
+          <img src="assets/logo.webp" alt="KPanel logo" />
+        </div>
+        <div>
+          <div class="kicker">KPanel Home</div>
+          <h1>Your Panel Portal</h1>
+        </div>
+      </div>
+      <div class="nav-copy">Set up household panels, map each screen to its destination, and sign in without passwords using your preferred account option.</div>
+    </div>
+
+    <div class="grid">
+      <main class="panel hero">
+        <div class="title-row">
+          <div>
+            <div class="kicker">Account & Provisioning</div>
+            <h2 id="heroTitle">Loading portal state…</h2>
+          </div>
+          <button id="logoutButton" class="secondary" type="button" hidden>Log out</button>
+        </div>
+        <p id="heroCopy" class="copy">Sign in, claim your panel code, and manage every screen from one place.</p>
+
+        <div id="message" class="message pending">Loading…</div>
+        <div id="app" class="stack"></div>
+      </main>
+
+      <aside id="sidebar" class="panel hero stack"></aside>
+    </div>
+  </div>
+
+  <script>
+    let API_BASE = null;
+
+    const app = document.getElementById('app');
+    const message = document.getElementById('message');
+    const heroTitle = document.getElementById('heroTitle');
+    const heroCopy = document.getElementById('heroCopy');
+    const sidebar = document.getElementById('sidebar');
+    const logoutButton = document.getElementById('logoutButton');
+
+    let sessionState = null;
+    let providerMap = new Map();
+
+    function setMessage(kind, text) {
+      message.className = `message ${kind}`;
+      message.textContent = text;
+    }
+
+    function renderSidebar() {
+      const status = sessionState?.status || 'unauthenticated';
+      const providers = sessionState?.providers || [];
+
+      if (status === 'unauthenticated') {
+        sidebar.innerHTML = `
+          <div>
+            <div class="section-title">Start here</div>
+            <div class="card muted">
+              Install the client on your panel, connect it to the internet, then enter the shown registration code here to add it to your account.
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="kicker">Portal Features</div>
+            <div class="metric">One account, many panels</div>
+            <div class="feature-list">
+              <div>Claim a panel in seconds using a single registration code.</div>
+              <div>Rename displays so everyone knows which screen is which.</div>
+              <div>Map each panel to a specific dashboard URL.</div>
+              <div>Add additional sign-in options to the same account.</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="section-title">Passwordless sign-in options</div>
+            <div class="pill-row" id="providerPills"></div>
+          </div>
+        `;
+      } else {
+        const user = sessionState?.user;
+        const panelCount = user?.devices?.length || 0;
+        const signInOptionCount = user?.identities?.length || 0;
+
+        sidebar.innerHTML = `
+          <div class="card">
+            <div class="kicker">Portal Snapshot</div>
+            <div class="metric">${panelCount}</div>
+            <div class="muted">Panels connected to your account</div>
+            <div class="pill-row" style="margin-top:14px;">
+              <div class="pill">${signInOptionCount} sign-in option${signInOptionCount === 1 ? '' : 's'}</div>
+              <div class="pill">Passwordless login</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="section-title">Quick tips</div>
+            <div class="feature-list">
+              <div>Use panel names like "Kitchen" or "Front Entry" so family members can spot the right display quickly.</div>
+              <div>Keep display URLs focused on the one dashboard each panel needs.</div>
+              <div>Add another sign-in option for account recovery convenience.</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="section-title">Available sign-in options</div>
+            <div class="pill-row" id="providerPills"></div>
+          </div>
+        `;
+      }
+
+      const providerPills = document.getElementById('providerPills');
+      if (!providerPills) {
+        return;
+      }
+      providerPills.innerHTML = providers.length
+        ? providers.map((provider) => `<div class="pill">${provider.label}</div>`).join('')
+        : '<div class="empty">No sign-in options are available yet.</div>';
+    }
+
+    function unique(values) {
+      return [...new Set(values.filter(Boolean))];
+    }
+
+    async function detectApiBase() {
+      try {
+        const sameOriginHealth = await fetch('/healthz', {
+          method: 'GET',
+          credentials: 'include',
+        });
+        if (sameOriginHealth.ok) {
+          return '';
+        }
+      } catch (error) {
+        // Fall through to explicit origin candidates.
+      }
+
+      const host = location.hostname || 'localhost';
+      const protocol = location.protocol || 'http:';
+      const candidates = unique([
+        `${protocol}//${host}:8000`,
+        host !== 'localhost' ? `${protocol}//localhost:8000` : '',
+        'http://localhost:8000',
+      ]);
+
+      for (const candidate of candidates) {
+        try {
+          const response = await fetch(`${candidate}/healthz`, {
+            method: 'GET',
+            credentials: 'include',
+          });
+          if (response.ok) {
+            return candidate;
+          }
+        } catch (error) {
+          // Try the next candidate.
+        }
+      }
+
+      return null;
+    }
+
+    async function api(path, options = {}) {
+      const headers = {
+        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(options.headers || {}),
+      };
+
+      const response = await fetch(`${API_BASE}${path}`, {
+        credentials: 'include',
+        ...options,
+        headers,
+      });
+
+      const contentType = response.headers.get('content-type') || '';
+      const data = contentType.includes('application/json') ? await response.json() : null;
+
+      if (!response.ok) {
+        const detail = data?.detail || JSON.stringify(data) || response.statusText;
+        throw new Error(detail);
+      }
+
+      return data;
+    }
+
+    function providerLabel(name) {
+      return providerMap.get(name)?.label || name;
+    }
+
+    function loginWithProvider(name, mode = 'login') {
+      if (name === 'dev_email') {
+        const email = window.prompt('Enter email for development login:');
+        if (!email) {
+          return;
+        }
+        const params = new URLSearchParams({ mode, email: email.trim() });
+        window.location.href = `${API_BASE}/api/v1/auth/dev-login?${params.toString()}`;
+        return;
+      }
+      window.location.href = `${API_BASE}/api/v1/auth/login/${name}?mode=${mode}`;
+    }
+
+    function renderProviders(names, mode = 'login') {
+      return names.map((name) => `
+        <button type="button" class="provider-button" data-provider="${name}" data-mode="${mode}">
+          ${providerLabel(name)}
+        </button>
+      `).join('');
+    }
+
+    function renderUnauthenticated() {
+      heroTitle.textContent = 'Welcome back. Sign in to continue.';
+      heroCopy.textContent = 'Use a passwordless sign-in option below to open your personal portal and manage your screens.';
+      setMessage('pending', 'Choose a sign-in option to open your portal.');
+      return `
+        <div class="section-title">Sign in</div>
+        <div class="provider-grid">
+          ${renderProviders(sessionState.providers.map((provider) => provider.name))}
+        </div>
+      `;
+    }
+
+    function renderNeedsAccount() {
+      const pending = sessionState.pending;
+      heroTitle.textContent = 'Finish creating your account.';
+      heroCopy.textContent = `You signed in as ${pending.email}. Create your KPanel profile to continue.`;
+      setMessage('pending', 'Set your name and complete account setup.');
+      return `
+        <form id="createAccountForm">
+          <div class="form-grid">
+            <div class="field full">
+              <label>Email address</label>
+              <input value="${pending.email}" disabled />
+            </div>
+            <div class="field full">
+              <label for="displayName">Display name</label>
+              <input id="displayName" value="${pending.display_name || ''}" placeholder="Display name" required />
+            </div>
+          </div>
+          <div class="actions">
+            <button type="submit" class="primary">Create KPanel account</button>
+          </div>
+        </form>
+      `;
+    }
+
+    function renderNeedsLink() {
+      const pending = sessionState.pending;
+      heroTitle.textContent = 'Confirm your account with an existing sign-in method.';
+      heroCopy.textContent = `The email ${pending.email} is already in use. Verify with one of your linked sign-in options, then connect this new option.`;
+      setMessage('pending', `Latest option used: ${providerLabel(pending.provider_name)}\nAccount email: ${pending.known_account_email}`);
+      return `
+        <div class="card">
+          <div class="section-title">Verify your identity</div>
+          <div class="provider-grid">
+            ${renderProviders(pending.link_providers, 'login')}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderDevices(devices) {
+      if (!devices.length) {
+        return '<div class="empty">No panel registration codes have been claimed yet.</div>';
+      }
+
+      return `
+        <div class="device-list">
+          ${devices.map((device) => `
+            <div class="device-card">
+              <strong>${device.display_name || device.registration_code}</strong>
+              <div class="muted">Code: <code>${device.registration_code}</code></div>
+              <div class="muted">Device ID: <code>${device.device_id}</code></div>
+              <div class="muted">Target URL: ${device.target_url || 'Pending'}</div>
+              <div class="muted">Last seen: ${device.last_seen_at || 'Unknown'}</div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    function renderDashboard(user) {
+      const availableLinkProviders = sessionState.providers
+        .map((provider) => provider.name)
+        .filter((name) => !user.identities.some((identity) => identity.provider_name === name));
+
+      return `
+        <div class="card">
+          <div class="section-title">Profile</div>
+          <div class="muted">${user.display_name} (${user.email})</div>
+          <div class="pill-row" style="margin-top:14px;">
+            ${user.identities.map((identity) => `<div class="pill">${providerLabel(identity.provider_name)}</div>`).join('')}
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="section-title">Add a new panel</div>
+          <div class="muted">On first boot, a panel shows a registration code on screen. Enter that code below to connect it to your account.</div>
+          <form id="claimDeviceForm" style="margin-top:18px;">
+            <div class="form-grid">
+              <div class="field">
+                <label for="registrationCode">Registration code</label>
+                <input id="registrationCode" placeholder="KPANEL-AB12CD" required />
+              </div>
+              <div class="field">
+                <label for="deviceDisplayName">Panel name</label>
+                <input id="deviceDisplayName" placeholder="Kitchen wall panel" />
+              </div>
+              <div class="field full">
+                <label for="targetUrl">Display URL</label>
+                <input id="targetUrl" placeholder="https://dashboard.example.com/living-room" required />
+              </div>
+            </div>
+            <div class="actions">
+              <button type="submit" class="primary">Add panel</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="card">
+          <div class="section-title">My panels</div>
+          ${renderDevices(user.devices)}
+        </div>
+
+        <div class="card">
+          <div class="section-title">Connected sign-in options</div>
+          ${availableLinkProviders.length
+            ? `<div class="provider-grid">${renderProviders(availableLinkProviders, 'link')}</div>`
+            : '<div class="empty">All available sign-in options are already connected to this account.</div>'}
+        </div>
+      `;
+    }
+
+    function renderLinkReady() {
+      const pending = sessionState.pending;
+      const user = sessionState.user;
+      heroTitle.textContent = 'Connect this sign-in method?';
+      heroCopy.textContent = `You are signed in as ${user.email}. Confirm to add ${providerLabel(pending.provider_name)} to this account.`;
+      setMessage('pending', `Pending sign-in option: ${providerLabel(pending.provider_name)}`);
+      return `
+        <div class="card">
+          <div class="section-title">Ready to connect</div>
+          <div class="muted">Current account: ${user.display_name} (${user.email})</div>
+          <div class="actions" style="margin-top:16px;">
+            <button type="button" id="completeLinkButton" class="primary">Link ${providerLabel(pending.provider_name)}</button>
+          </div>
+        </div>
+        ${renderDashboard(user)}
+      `;
+    }
+
+    function renderAuthenticated() {
+      const user = sessionState.user;
+      heroTitle.textContent = 'Your portal is ready.';
+      heroCopy.textContent = 'Manage every panel, update display destinations, and keep your account sign-in methods in sync.';
+      setMessage('success', `Signed in as ${user.email}`);
+      return renderDashboard(user);
+    }
+
+    function wireInteractions() {
+      document.querySelectorAll('[data-provider]').forEach((button) => {
+        button.addEventListener('click', () => {
+          loginWithProvider(button.dataset.provider, button.dataset.mode || 'login');
+        });
+      });
+
+      const createAccountForm = document.getElementById('createAccountForm');
+      if (createAccountForm) {
+        createAccountForm.addEventListener('submit', async (event) => {
+          event.preventDefault();
+          setMessage('pending', 'Creating your KPanel account...');
+          try {
+            await api('/api/v1/account/create', {
+              method: 'POST',
+              body: JSON.stringify({
+                display_name: document.getElementById('displayName').value.trim(),
+              }),
+            });
+            await loadSession();
+          } catch (error) {
+            setMessage('error', error.message);
+          }
+        });
+      }
+
+      const completeLinkButton = document.getElementById('completeLinkButton');
+      if (completeLinkButton) {
+        completeLinkButton.addEventListener('click', async () => {
+          setMessage('pending', 'Connecting sign-in option to your account...');
+          try {
+            await api('/api/v1/account/link/complete', { method: 'POST' });
+            await loadSession();
+          } catch (error) {
+            setMessage('error', error.message);
+          }
+        });
+      }
+
+      const claimDeviceForm = document.getElementById('claimDeviceForm');
+      if (claimDeviceForm) {
+        claimDeviceForm.addEventListener('submit', async (event) => {
+          event.preventDefault();
+          setMessage('pending', 'Claiming panel registration code...');
+          try {
+            await api('/api/v1/account/devices/claim', {
+              method: 'POST',
+              body: JSON.stringify({
+                registration_code: document.getElementById('registrationCode').value.trim(),
+                display_name: document.getElementById('deviceDisplayName').value.trim(),
+                target_url: document.getElementById('targetUrl').value.trim(),
+              }),
+            });
+            claimDeviceForm.reset();
+            await loadSession();
+          } catch (error) {
+            setMessage('error', error.message);
+          }
+        });
+      }
+    }
+
+    async function loadSession() {
+      try {
+        if (API_BASE === null) {
+          setMessage('pending', 'Connecting to KPanel services...');
+          API_BASE = await detectApiBase();
+          if (API_BASE === null) {
+            throw new Error('Unable to reach backend API. Check container status and VS Code port forwarding.');
+          }
+        }
+
+        sessionState = await api('/api/v1/auth/session');
+        providerMap = new Map(sessionState.providers.map((provider) => [provider.name, provider]));
+        renderSidebar();
+
+        logoutButton.hidden = sessionState.status === 'unauthenticated' || sessionState.status === 'needs_account';
+
+        switch (sessionState.status) {
+          case 'unauthenticated':
+            app.innerHTML = renderUnauthenticated();
+            break;
+          case 'needs_account':
+            app.innerHTML = renderNeedsAccount();
+            break;
+          case 'needs_link':
+            app.innerHTML = renderNeedsLink();
+            break;
+          case 'link_ready':
+            app.innerHTML = renderLinkReady();
+            break;
+          case 'authenticated':
+            app.innerHTML = renderAuthenticated();
+            break;
+          default:
+            app.innerHTML = '<div class="empty">Unexpected session state returned by backend.</div>';
+            setMessage('error', 'Unexpected session state.');
+            break;
+        }
+
+        if (sessionState.message && sessionState.status === 'unauthenticated') {
+          setMessage('error', sessionState.message);
+        }
+
+        wireInteractions();
+      } catch (error) {
+        heroTitle.textContent = 'Portal failed to load.';
+        heroCopy.textContent = 'The frontend could not retrieve session state from the backend.';
+        app.innerHTML = '<div class="empty">Check backend connectivity and available sign-in options.</div>';
+        setMessage('error', error.message);
+      }
+    }
+
+    logoutButton.addEventListener('click', async () => {
+      try {
+        await api('/api/v1/auth/logout', { method: 'POST' });
+        await loadSession();
+      } catch (error) {
+        setMessage('error', error.message);
+      }
+    });
+
+    loadSession();
+  </script>
+</body>
+</html>

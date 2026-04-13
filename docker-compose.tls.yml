@@ -1,0 +1,22 @@
+services:
+  backend:
+    environment:
+      - KPANEL_REQUIRE_HTTPS=true
+
+  reverse-proxy:
+    image: caddy:2.9-alpine
+    container_name: kpanel-reverse-proxy
+    depends_on:
+      - backend
+      - frontend
+    ports:
+      - "8443:443"
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,10 @@
+:443 {
+  tls internal
+
+  @backendPaths {
+    path /api/* /healthz /docs* /openapi.json
+  }
+
+  reverse_proxy @backendPaths backend:8000
+  reverse_proxy frontend:80
+}

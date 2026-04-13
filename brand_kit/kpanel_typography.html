@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KPanel Typography System</title>
+<style>
+:root {
+  --bg:#07111D;
+  --surface:#0F233D;
+  --surface-2:#0B1D33;
+  --text:#F4FBFF;
+  --muted:#9BB3C9;
+  --primary:#22C7FF;
+  --primary-2:#1A6DFF;
+  --accent:#8BE71E;
+  --border:rgba(108,195,255,.18);
+  --radius:20px;
+}
+* { box-sizing:border-box; }
+body {
+  margin:0;
+  font-family: Inter, ui-sans-serif, system-ui;
+  background:linear-gradient(180deg,var(--bg),#0A1B2F);
+  color:var(--text);
+  line-height:1.45;
+}
+.wrap { max-width:1100px; margin:0 auto; padding:48px 24px 80px; }
+.hero { display:grid; grid-template-columns: 120px 1fr; gap:24px; align-items:center; margin-bottom:40px; }
+.card {
+  background:linear-gradient(180deg,var(--surface),var(--surface-2));
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:24px; margin-bottom:20px;
+  box-shadow:0 20px 40px rgba(0,0,0,.4);
+}
+h1 { font-size:52px; letter-spacing:-0.03em; }
+h2 { font-size:28px; color:var(--primary); }
+.kicker {
+  color:var(--accent);
+  text-transform:uppercase;
+  letter-spacing:.16em;
+  font-size:12px;
+  font-weight:700;
+}
+.muted { color:var(--muted); }
+.scale div { padding:12px 0; border-top:1px solid var(--border); }
+.display { font-size:72px; font-weight:800; }
+.h1 { font-size:56px; font-weight:800; }
+.h2 { font-size:40px; font-weight:700; }
+.h3 { font-size:28px; font-weight:700; }
+.h4 { font-size:22px; font-weight:600; }
+.body { font-size:16px; }
+.small { font-size:14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <div>
+      <div class="kicker">KPanel System</div>
+      <h1>KPanel Typography</h1>
+      <div class="muted">Clean, high-contrast type built for kiosk UI.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Recommended stack</h2>
+    <div class="body">
+      Inter / Space Grotesk / JetBrains Mono
+    </div>
+  </div>
+
+  <div class="card scale">
+    <h2>Type scale</h2>
+    <div class="display">Display</div>
+    <div class="h1">Heading 1</div>
+    <div class="h2">Heading 2</div>
+    <div class="h3">Heading 3</div>
+    <div class="h4">Heading 4</div>
+    <div class="body">Body</div>
+    <div class="small">Small</div>
+  </div>
+</div>
+</body>
+</html>
