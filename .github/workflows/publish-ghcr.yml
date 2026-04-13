@@ -1,0 +1,107 @@
+name: Publish Containers to GHCR
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+  push:
+    branches:
+      - main
+  release:
+    types:
+      - published
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    name: Publish ${{ matrix.component }} image
+    runs-on: ubuntu-latest
+    # PRs from forks do not have package write permission with GITHUB_TOKEN.
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: backend
+            context: ./backend
+            dockerfile: ./backend/Dockerfile
+          - component: frontend
+            context: ./frontend
+            dockerfile: ./frontend/Dockerfile
+
+    steps:
+      - name: Check out source repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image name and tags
+        id: prep
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          REPO_LOWER="${GITHUB_REPOSITORY,,}"
+          IMAGE="ghcr.io/${REPO_LOWER}/${{ matrix.component }}"
+          TAGS=()
+
+          case "${GITHUB_EVENT_NAME}" in
+            pull_request)
+              TAGS=(
+                "${IMAGE}:latest-dev"
+              )
+              ;;
+            push)
+              TAGS=(
+                "${IMAGE}:latest-stage"
+                "${IMAGE}:latest"
+              )
+              ;;
+            release)
+              TAG_NAME="${{ github.event.release.tag_name }}"
+              VERSION_TAG="${TAG_NAME#v}"
+              if [[ -z "${VERSION_TAG}" ]]; then
+                echo "Release tag is empty" >&2
+                exit 1
+              fi
+              TAGS=(
+                "${IMAGE}:latest"
+                "${IMAGE}:latest-stable"
+                "${IMAGE}:${VERSION_TAG}"
+              )
+              ;;
+            *)
+              echo "Unsupported event: ${GITHUB_EVENT_NAME}" >&2
+              exit 1
+              ;;
+          esac
+
+          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+          {
+            echo "tags<<EOF"
+            printf '%s\n' "${TAGS[@]}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.prep.outputs.tags }}
+          provenance: false

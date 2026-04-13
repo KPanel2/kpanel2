@@ -1,0 +1,84 @@
+services:
+  mariadb:
+    image: mariadb:11.4
+    container_name: kpanel-mariadb
+    environment:
+      - MARIADB_ROOT_PASSWORD=root
+      - MARIADB_DATABASE=kpanel
+      - MARIADB_USER=kpanel
+      - MARIADB_PASSWORD=kpanel
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mariadb-admin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  backend:
+    image: ghcr.io/kpanel2/kpanel2/backend:latest-dev
+    container_name: kpanel-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - KPANEL_API_HOST=0.0.0.0
+      - KPANEL_API_PORT=8000
+      - KPANEL_FRONTEND_BASE_URL=https://kpanel.dev.kumpe.app
+      - KPANEL_SESSION_SECRET=change-session-secret
+      - KPANEL_CORS_ORIGINS=https://kpanel.dev.kumpe.app
+      - KPANEL_DB_HOST=mariadb
+      - KPANEL_DB_PORT=3306
+      - KPANEL_DB_USER=kpanel
+      - KPANEL_DB_PASSWORD=kpanel
+      - KPANEL_DB_NAME=kpanel
+      - KPANEL_ADMIN_API_KEY=change-me
+      - KPANEL_DEVICE_TOKEN_SECRET=change-device-token-secret
+      - KPANEL_ENFORCE_DEVICE_TOKEN=true
+      - KPANEL_REQUIRE_HTTPS=false
+      - KPANEL_DEV_AUTH_ENABLED=true
+      - KPANEL_OIDC_GOOGLE_CLIENT_ID=
+      - KPANEL_OIDC_GOOGLE_CLIENT_SECRET=
+      - KPANEL_OIDC_GITHUB_CLIENT_ID=
+      - KPANEL_OIDC_GITHUB_CLIENT_SECRET=
+      - KPANEL_OIDC_FACEBOOK_CLIENT_ID=
+      - KPANEL_OIDC_FACEBOOK_CLIENT_SECRET=
+      - KPANEL_OIDC_APPLE_CLIENT_ID=
+      - KPANEL_OIDC_APPLE_CLIENT_SECRET=
+      - KPANEL_OIDC_MICROSOFT_LOGIN_CLIENT_ID=
+      - KPANEL_OIDC_MICROSOFT_LOGIN_CLIENT_SECRET=
+      - KPANEL_OIDC_MICROSOFT_ENTRA_CLIENT_ID=
+      - KPANEL_OIDC_MICROSOFT_ENTRA_CLIENT_SECRET=
+      - KPANEL_OIDC_MICROSOFT_ENTRA_TENANT=organizations
+      - KPANEL_OIDC_CUSTOM_CLIENT_ID=
+      - KPANEL_OIDC_CUSTOM_CLIENT_SECRET=
+      - KPANEL_OIDC_CUSTOM_SERVER_METADATA_URL=
+      - KPANEL_OIDC_CUSTOM_SCOPE=openid email profile offline_access
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  frontend:
+    image: ghcr.io/kpanel2/kpanel2/frontend:latest-dev
+    container_name: kpanel-frontend
+    ports:
+      - "8080:80"
+    environment:
+      - KPANEL_API_BASE_URL=http://localhost:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  mariadb_data:
