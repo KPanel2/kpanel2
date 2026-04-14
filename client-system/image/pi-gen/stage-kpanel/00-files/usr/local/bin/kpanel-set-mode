@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
+  echo "Run as root: sudo kpanel-set-mode <prod|stage|dev>"
+  exit 1
+fi
+
+MODE="${1:-}"
+case "$MODE" in
+  prod|stage|dev) ;;
+  *)
+    echo "Usage: kpanel-set-mode <prod|stage|dev>"
+    exit 1
+    ;;
+esac
+
+CONF=/etc/default/kpanel-client
+if [[ ! -f "$CONF" ]]; then
+  echo "Missing $CONF"
+  exit 1
+fi
+
+sed -i "s/^KPANEL_ENV_MODE=.*/KPANEL_ENV_MODE=${MODE}/" "$CONF"
+
+echo "Set KPANEL_ENV_MODE=${MODE} in $CONF"
+echo "Reboot or restart graphical session to relaunch kiosk with new target."
