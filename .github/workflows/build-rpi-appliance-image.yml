@@ -1,6 +1,7 @@
 name: Build Raspberry Pi Appliance Image
 
 on:
+  push:
   workflow_dispatch:
     inputs:
       image_name:
@@ -16,11 +17,20 @@ on:
       - published
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-image:
     runs-on: ubuntu-latest
+    env:
+      RCLONE_CONFIG_BLOB: ${{ secrets.RCLONE_CONFIG }}
+      RCLONE_REMOTE_PATH: ${{ secrets.RCLONE_REMOTE_PATH }}
+      HAS_RCLONE_CONFIG: ${{ secrets.RCLONE_CONFIG != '' }}
+      HAS_RCLONE_REMOTE_PATH: ${{ secrets.RCLONE_REMOTE_PATH != '' }}
 
     steps:
       - name: Check out source repository
@@ -31,13 +41,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          IMAGE_NAME="kpanel-appliance"
+          VERSION="0.1.0~git${GITHUB_SHA::7}"
+
           if [[ "${GITHUB_EVENT_NAME}" == "release" ]]; then
             VERSION="${{ github.event.release.tag_name }}"
             VERSION="${VERSION#v}"
-          else
+          elif [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
             VERSION="${{ github.event.inputs.package_version }}"
+            IMAGE_NAME="${{ github.event.inputs.image_name || 'kpanel-appliance' }}"
           fi
-          IMAGE_NAME="${{ github.event.inputs.image_name || 'kpanel-appliance' }}"
+
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "image_name=${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
 
@@ -52,6 +67,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p client-system/image/pi-gen/stage-kpanel/00-files/usr/local/src
           cp "client-system/build/kpanel-client_${{ steps.vars.outputs.version }}_all.deb" \
              "client-system/image/pi-gen/stage-kpanel/00-files/usr/local/src/kpanel-client.deb"
 
@@ -59,7 +75,23 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git clone --depth=1 https://github.com/RPi-Distro/pi-gen.git /tmp/pi-gen
+          git clone --depth=1 --branch bookworm --single-branch https://github.com/RPi-Distro/pi-gen.git /tmp/pi-gen
+
+      - name: Install pi-gen build dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            quilt \
+            debootstrap \
+            libarchive-tools \
+            arch-test \
+            binfmt-support \
+            qemu-user-static \
+            xz-utils \
+            curl \
+            rclone
 
       - name: Inject KPanel custom stage
         shell: bash
@@ -80,19 +112,138 @@ jobs:
           FIRST_USER_PASS='kpanel'
           DISABLE_FIRST_BOOT_USER_RENAME=1
           ENABLE_SSH=1
-          DEPLOY_ZIP=1
+          DEPLOY_ZIP=0
           STAGE_LIST='stage0 stage1 stage2 stage3 stage4 stage-kpanel'
           EOF
 
-      - name: Build image with pi-gen
+      - name: Verify Docker runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker version
+
+      - name: Register ARM binfmt handlers
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo modprobe binfmt_misc || true
+          sudo mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc || true
+          sudo update-binfmts --enable qemu-arm || true
+          sudo update-binfmts --enable qemu-aarch64 || true
+
+          if ! command -v qemu-arm >/dev/null 2>&1 && command -v qemu-arm-static >/dev/null 2>&1; then
+            sudo ln -sf "$(command -v qemu-arm-static)" /usr/local/bin/qemu-arm
+          fi
+          if ! command -v qemu-aarch64 >/dev/null 2>&1 && command -v qemu-aarch64-static >/dev/null 2>&1; then
+            sudo ln -sf "$(command -v qemu-aarch64-static)" /usr/local/bin/qemu-aarch64
+          fi
+
+          docker run --rm --privileged tonistiigi/binfmt --install arm,arm64
+
+      - name: Verify binfmt registration
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v qemu-arm
+          command -v qemu-aarch64
+          test -e /proc/sys/fs/binfmt_misc/qemu-arm
+          test -e /proc/sys/fs/binfmt_misc/qemu-aarch64
+
+      - name: Build image with pi-gen (Docker)
         shell: bash
         run: |
           set -euo pipefail
           cd /tmp/pi-gen
-          sudo ./build.sh
+          sudo ./build-docker.sh
+
+      - name: Shrink, compress, and checksum image artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          DEPLOY_DIR=/tmp/pi-gen/deploy
+          IMG_PATH="$(find "$DEPLOY_DIR" -maxdepth 1 -type f -name '*.img' | head -n 1)"
+
+          if [[ -z "${IMG_PATH}" ]]; then
+            echo "No .img artifact found under $DEPLOY_DIR" >&2
+            ls -la "$DEPLOY_DIR" || true
+            exit 1
+          fi
+
+          PISHRINK=/tmp/pishrink.sh
+          curl -fsSL https://raw.githubusercontent.com/Drewsif/PiShrink/master/pishrink.sh -o "$PISHRINK"
+          chmod +x "$PISHRINK"
+
+          sudo "$PISHRINK" "$IMG_PATH"
+
+          BASE_NAME="$(basename "${IMG_PATH%.img}")"
+          XZ_PATH="$DEPLOY_DIR/${BASE_NAME}.img.xz"
+          xz -T0 -9e -c "$IMG_PATH" > "$XZ_PATH"
+
+          sha256sum "$XZ_PATH" > "$XZ_PATH.sha256"
+
+          echo "Compressed artifact details:"
+          ls -lh "$XZ_PATH" "$XZ_PATH.sha256"
+
+      - name: Report mirror upload configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "RCLONE_CONFIG present: $HAS_RCLONE_CONFIG"
+          echo "RCLONE_REMOTE_PATH present: $HAS_RCLONE_REMOTE_PATH"
+          if [[ "$HAS_RCLONE_CONFIG" != "true" || "$HAS_RCLONE_REMOTE_PATH" != "true" ]]; then
+            echo "rclone mirror upload will be skipped because required secrets are missing"
+          else
+            echo "rclone mirror upload is enabled"
+          fi
+
+      - name: Upload compressed artifacts via rclone
+        if: ${{ env.HAS_RCLONE_CONFIG == 'true' && env.HAS_RCLONE_REMOTE_PATH == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          DEPLOY_DIR=/tmp/pi-gen/deploy
+          mapfile -t FILES < <(find "$DEPLOY_DIR" -maxdepth 1 -type f \( -name '*.img.xz' -o -name '*.img.xz.sha256' \) | sort)
+
+          if [[ "${#FILES[@]}" -eq 0 ]]; then
+            echo "No compressed artifacts found for rclone upload" >&2
+            exit 1
+          fi
+
+          mkdir -p "$HOME/.config/rclone"
+          printf '%s\n' "$RCLONE_CONFIG_BLOB" > "$HOME/.config/rclone/rclone.conf"
+
+          echo "Uploading files to $RCLONE_REMOTE_PATH"
+          printf ' - %s\n' "${FILES[@]}"
+
+          rclone mkdir "$RCLONE_REMOTE_PATH"
+          rclone copy "$DEPLOY_DIR" "$RCLONE_REMOTE_PATH" \
+            --include "*.img.xz" \
+            --include "*.img.xz.sha256" \
+            --progress \
+            --stats-one-line
+
+          echo "rclone upload completed to $RCLONE_REMOTE_PATH"
+
+      - name: Dump debootstrap diagnostics on failure
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ls /tmp/pi-gen/work/*/stage0/debootstrap.log >/dev/null 2>&1; then
+            for f in /tmp/pi-gen/work/*/stage0/debootstrap.log; do
+              echo "----- $f -----"
+              tail -n 200 "$f" || true
+            done
+          else
+            echo "No debootstrap logs found under /tmp/pi-gen/work"
+          fi
 
       - name: Upload appliance image artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.vars.outputs.image_name }}-${{ steps.vars.outputs.version }}
-          path: /tmp/pi-gen/deploy/*
+          path: |
+            /tmp/pi-gen/deploy/*.img.xz
+            /tmp/pi-gen/deploy/*.img.xz.sha256
