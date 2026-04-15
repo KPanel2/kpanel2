@@ -1,6 +1,7 @@
 name: Build Raspberry Pi Appliance Image
 
 on:
+  push:
   workflow_dispatch:
     inputs:
       image_name:
@@ -31,13 +32,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          IMAGE_NAME="kpanel-appliance"
+          VERSION="0.1.0~git${GITHUB_SHA::7}"
+
           if [[ "${GITHUB_EVENT_NAME}" == "release" ]]; then
             VERSION="${{ github.event.release.tag_name }}"
             VERSION="${VERSION#v}"
-          else
+          elif [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
             VERSION="${{ github.event.inputs.package_version }}"
+            IMAGE_NAME="${{ github.event.inputs.image_name || 'kpanel-appliance' }}"
           fi
-          IMAGE_NAME="${{ github.event.inputs.image_name || 'kpanel-appliance' }}"
+
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "image_name=${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
 
@@ -52,6 +58,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p client-system/image/pi-gen/stage-kpanel/00-files/usr/local/src
           cp "client-system/build/kpanel-client_${{ steps.vars.outputs.version }}_all.deb" \
              "client-system/image/pi-gen/stage-kpanel/00-files/usr/local/src/kpanel-client.deb"
 
@@ -59,7 +66,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git clone --depth=1 https://github.com/RPi-Distro/pi-gen.git /tmp/pi-gen
+          git clone --depth=1 --branch bookworm --single-branch https://github.com/RPi-Distro/pi-gen.git /tmp/pi-gen
+
+      - name: Install pi-gen build dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            quilt \
+            debootstrap \
+            libarchive-tools \
+            arch-test \
+            binfmt-support \
+            qemu-user-static
 
       - name: Inject KPanel custom stage
         shell: bash
@@ -84,12 +104,59 @@ jobs:
           STAGE_LIST='stage0 stage1 stage2 stage3 stage4 stage-kpanel'
           EOF
 
-      - name: Build image with pi-gen
+      - name: Verify Docker runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker version
+
+      - name: Register ARM binfmt handlers
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo modprobe binfmt_misc || true
+          sudo mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc || true
+          sudo update-binfmts --enable qemu-arm || true
+          sudo update-binfmts --enable qemu-aarch64 || true
+
+          if ! command -v qemu-arm >/dev/null 2>&1 && command -v qemu-arm-static >/dev/null 2>&1; then
+            sudo ln -sf "$(command -v qemu-arm-static)" /usr/local/bin/qemu-arm
+          fi
+          if ! command -v qemu-aarch64 >/dev/null 2>&1 && command -v qemu-aarch64-static >/dev/null 2>&1; then
+            sudo ln -sf "$(command -v qemu-aarch64-static)" /usr/local/bin/qemu-aarch64
+          fi
+
+          docker run --rm --privileged tonistiigi/binfmt --install arm,arm64
+
+      - name: Verify binfmt registration
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v qemu-arm
+          command -v qemu-aarch64
+          test -e /proc/sys/fs/binfmt_misc/qemu-arm
+          test -e /proc/sys/fs/binfmt_misc/qemu-aarch64
+
+      - name: Build image with pi-gen (Docker)
         shell: bash
         run: |
           set -euo pipefail
           cd /tmp/pi-gen
-          sudo ./build.sh
+          sudo ./build-docker.sh
+
+      - name: Dump debootstrap diagnostics on failure
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ls /tmp/pi-gen/work/*/stage0/debootstrap.log >/dev/null 2>&1; then
+            for f in /tmp/pi-gen/work/*/stage0/debootstrap.log; do
+              echo "----- $f -----"
+              tail -n 200 "$f" || true
+            done
+          else
+            echo "No debootstrap logs found under /tmp/pi-gen/work"
+          fi
 
       - name: Upload appliance image artifact
         uses: actions/upload-artifact@v4
