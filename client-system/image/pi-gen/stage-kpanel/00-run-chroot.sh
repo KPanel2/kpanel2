@@ -12,10 +12,11 @@ dpkg -i /usr/local/src/kpanel-client.deb || apt-get -f -y install
 systemctl disable kpanel-client.service || true
 systemctl stop kpanel-client.service || true
 
-install -d -m 755 -o pi -g pi /home/pi/.config /home/pi/.config/autostart
+install -d -m 755 -o pi -g pi /home/pi/.config /home/pi/.config/openbox
 chmod +x /usr/local/bin/kpanel-client-launcher.sh
 chmod +x /usr/local/bin/kpanel-set-mode
-chown pi:pi /home/pi/.config/autostart/kpanel-client.desktop
+chmod +x /home/pi/.config/openbox/autostart
+chown pi:pi /home/pi/.config/openbox/autostart
 
 # Ensure chromium can start with user session defaults.
 if [ -f /etc/chromium-browser/default ]; then

@@ -3,7 +3,7 @@
 This directory contains the Raspberry Pi appliance-image scaffolding so a flashed device can:
 
 - boot without manual OS login,
-- autologin into the desktop session,
+- autologin into a minimal graphical session,
 - auto-start KPanel client,
 - immediately enter Wi-Fi/onboarding + registration flow.
 
@@ -12,7 +12,7 @@ This directory contains the Raspberry Pi appliance-image scaffolding so a flashe
 - `pi-gen/stage-kpanel/`
   Custom pi-gen stage that installs `kpanel-client` deb package into the image.
 - LightDM autologin configuration for user `pi`.
-- Desktop autostart entry launching KPanel client at session start.
+- Openbox autostart entry launching KPanel client at session start.
 
 ## CI image build
 
@@ -33,7 +33,7 @@ The workflow:
 ## Notes
 
 - The image build is heavier than package builds and can take significant CI time.
-- This stage disables system `kpanel-client.service` and uses desktop autostart for kiosk UX.
+- This stage disables system `kpanel-client.service` and uses a minimal LightDM + Openbox session for kiosk UX.
 - If you want strict no-desktop/sessionless boot later, migrate launcher to a compositor-based kiosk service.
 - Current CI image defaults configure `pi` user password as `kpanel` and enable SSH for provisioning convenience.
 - For production, rotate credentials immediately or adjust the workflow config to use hardened credentials.

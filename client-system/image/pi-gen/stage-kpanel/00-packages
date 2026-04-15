@@ -2,3 +2,7 @@ network-manager
 python3-venv
 python3-tk
 chromium-browser
+lightdm
+openbox
+xserver-xorg
+x11-xserver-utils

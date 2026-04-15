@@ -113,7 +113,7 @@ jobs:
           DISABLE_FIRST_BOOT_USER_RENAME=1
           ENABLE_SSH=1
           DEPLOY_ZIP=0
-          STAGE_LIST='stage0 stage1 stage2 stage3 stage4 stage-kpanel'
+          STAGE_LIST='stage0 stage1 stage2 stage3 stage-kpanel'
           EOF
 
       - name: Verify Docker runtime
@@ -175,15 +175,32 @@ jobs:
           chmod +x "$PISHRINK"
 
           sudo "$PISHRINK" "$IMG_PATH"
+          sudo chown -R "$(id -u):$(id -g)" "$DEPLOY_DIR"
 
           BASE_NAME="$(basename "${IMG_PATH%.img}")"
           XZ_PATH="$DEPLOY_DIR/${BASE_NAME}.img.xz"
-          xz -T0 -9e -c "$IMG_PATH" > "$XZ_PATH"
+
+          RAW_BYTES="$(stat -c '%s' "$IMG_PATH")"
+
+          # Favor smallest output size over compression speed.
+          xz \
+            --threads=1 \
+            --compress \
+            --stdout \
+            --check=crc64 \
+            --lzma2=dict=256MiB,nice=273,pb=2,lc=3,lp=0,mode=normal,mf=bt4 \
+            "$IMG_PATH" > "$XZ_PATH"
+
+          XZ_BYTES="$(stat -c '%s' "$XZ_PATH")"
+          RATIO="$(awk -v raw="$RAW_BYTES" -v xz="$XZ_BYTES" 'BEGIN { if (raw == 0) print "0.00"; else printf "%.2f", (xz / raw) * 100 }')"
 
           sha256sum "$XZ_PATH" > "$XZ_PATH.sha256"
 
           echo "Compressed artifact details:"
           ls -lh "$XZ_PATH" "$XZ_PATH.sha256"
+          echo "Raw image bytes: $RAW_BYTES"
+          echo "Compressed bytes: $XZ_BYTES"
+          echo "Compressed size is ${RATIO}% of raw image"
 
       - name: Report mirror upload configuration
         shell: bash
@@ -245,5 +262,13 @@ jobs:
         with:
           name: ${{ steps.vars.outputs.image_name }}-${{ steps.vars.outputs.version }}
           path: |
+            /tmp/pi-gen/deploy/*.img.xz
+            /tmp/pi-gen/deploy/*.img.xz.sha256
+
+      - name: Attach image artifacts to GitHub release
+        if: ${{ github.event_name == 'release' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
             /tmp/pi-gen/deploy/*.img.xz
             /tmp/pi-gen/deploy/*.img.xz.sha256
