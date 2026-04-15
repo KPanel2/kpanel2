@@ -19,7 +19,7 @@ compliance:
     require_issue_type_match: true
     require_issue_autoclose: true
     require_rebase: true
-    require_single_commit: true
+    require_single_commit: false
     require_commit_prefix: true
 
   security:
