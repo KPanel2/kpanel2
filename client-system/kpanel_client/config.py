@@ -34,6 +34,7 @@ def _default_device_id() -> str:
 @dataclass
 class ClientConfig:
     api_base_url: str = _api_base_url()
+    client_version: str = os.getenv("KPANEL_CLIENT_VERSION", "unknown")
     device_id: str = _default_device_id()
     device_token: str = os.getenv("KPANEL_DEVICE_TOKEN", "")
     registration_code: str = os.getenv("KPANEL_REG_CODE", "")

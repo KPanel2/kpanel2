@@ -5,6 +5,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, HttpUrl
+from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -89,6 +90,18 @@ class DeviceBootstrapRequest(BaseModel):
 class DeviceResolveRequest(BaseModel):
     device_id: str
     registration_code: str
+    client_version: str | None = None
+
+
+class DeviceActionAckRequest(BaseModel):
+    registration_code: str
+    action: str
+    status: str = "completed"
+
+
+class DeviceUpdateRequest(BaseModel):
+    display_name: str | None = None
+    target_url: HttpUrl | None = None
 
 
 class RegistrationCreateRequest(BaseModel):
@@ -141,7 +154,42 @@ def _serialize_device(device: DeviceRegistration) -> dict:
         "target_url": device.target_url,
         "claimed_at": to_iso(device.claimed_at),
         "last_seen_at": to_iso(device.last_seen_at),
+        "client_version": device.client_version,
+        "pending_action": device.pending_action,
+        "pending_action_requested_at": to_iso(device.pending_action_requested_at),
+        "last_action": device.last_action,
+        "last_action_status": device.last_action_status,
+        "last_action_at": to_iso(device.last_action_at),
     }
+
+
+def _ensure_device_registration_columns() -> None:
+    inspector = inspect(engine)
+    try:
+        columns = {column["name"] for column in inspector.get_columns("device_registrations")}
+    except Exception:
+        return
+
+    statements: list[str] = []
+    if "client_version" not in columns:
+        statements.append("ALTER TABLE device_registrations ADD COLUMN client_version VARCHAR(64)")
+    if "pending_action" not in columns:
+        statements.append("ALTER TABLE device_registrations ADD COLUMN pending_action VARCHAR(32)")
+    if "pending_action_requested_at" not in columns:
+        statements.append("ALTER TABLE device_registrations ADD COLUMN pending_action_requested_at DATETIME")
+    if "last_action" not in columns:
+        statements.append("ALTER TABLE device_registrations ADD COLUMN last_action VARCHAR(32)")
+    if "last_action_status" not in columns:
+        statements.append("ALTER TABLE device_registrations ADD COLUMN last_action_status VARCHAR(64)")
+    if "last_action_at" not in columns:
+        statements.append("ALTER TABLE device_registrations ADD COLUMN last_action_at DATETIME")
+
+    if not statements:
+        return
+
+    with engine.begin() as connection:
+        for statement in statements:
+            connection.execute(text(statement))
 
 
 def _serialize_user(user: User, identities: list[UserIdentity], devices: list[DeviceRegistration]) -> dict:
@@ -433,6 +481,7 @@ def _build_session_state(request: Request, db: Session, revoked: bool = False) -
 def startup() -> None:
     global PROVIDERS
     Base.metadata.create_all(bind=engine)
+    _ensure_device_registration_columns()
     PROVIDERS = init_oauth_clients()
 
 
@@ -646,6 +695,84 @@ def account_claim_device(
     return {"status": "configured", "device": _serialize_device(device)}
 
 
+@app.patch("/api/v1/account/devices/{registration_code}")
+def account_update_device(
+    registration_code: str,
+    req: DeviceUpdateRequest,
+    request: Request,
+    db: Session = Depends(get_db_session),
+) -> dict:
+    user = _current_user(request, db)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    device = db.get(DeviceRegistration, registration_code.strip().upper())
+    if device is None or device.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    updated = False
+    if req.display_name is not None:
+        cleaned = req.display_name.strip()
+        device.display_name = cleaned or device.display_name
+        updated = True
+    if req.target_url is not None:
+        device.target_url = str(req.target_url)
+        updated = True
+
+    if not updated:
+        raise HTTPException(status_code=400, detail="No editable fields were provided")
+
+    device.updated_at = now_utc()
+    db.commit()
+    return {"status": "updated", "device": _serialize_device(device)}
+
+
+@app.delete("/api/v1/account/devices/{registration_code}")
+def account_delete_device(
+    registration_code: str,
+    request: Request,
+    db: Session = Depends(get_db_session),
+) -> dict:
+    user = _current_user(request, db)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    device = db.get(DeviceRegistration, registration_code.strip().upper())
+    if device is None or device.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    db.delete(device)
+    db.commit()
+    return {"status": "deleted", "registration_code": registration_code.strip().upper()}
+
+
+@app.post("/api/v1/account/devices/{registration_code}/actions/{action}")
+def account_device_action(
+    registration_code: str,
+    action: str,
+    request: Request,
+    db: Session = Depends(get_db_session),
+) -> dict:
+    user = _current_user(request, db)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    normalized_action = action.strip().lower()
+    if normalized_action not in {"update", "reboot"}:
+        raise HTTPException(status_code=400, detail="Unsupported action")
+
+    device = db.get(DeviceRegistration, registration_code.strip().upper())
+    if device is None or device.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    timestamp = now_utc()
+    device.pending_action = normalized_action
+    device.pending_action_requested_at = timestamp
+    device.updated_at = timestamp
+    db.commit()
+    return {"status": "queued", "action": normalized_action, "device": _serialize_device(device)}
+
+
 @app.post("/api/v1/admin/device-tokens")
 def create_device_token(
     req: DeviceTokenIssueRequest,
@@ -749,8 +876,11 @@ def resolve_device(
     if device is None or device.device_id != req.device_id:
         return {"status": "pending", "message": "Registration code not found for this device"}
 
-    device.last_seen_at = now_utc()
-    device.updated_at = now_utc()
+    timestamp = now_utc()
+    device.last_seen_at = timestamp
+    device.updated_at = timestamp
+    if req.client_version:
+        device.client_version = req.client_version.strip()
     db.commit()
 
     if not device.target_url:
@@ -761,7 +891,34 @@ def resolve_device(
         "device_id": req.device_id,
         "registration_code": device.registration_code,
         "configured_url": device.target_url,
+        "pending_action": device.pending_action,
     }
+
+
+@app.post("/api/v1/devices/{device_id}/actions/ack")
+def ack_device_action(
+    device_id: str,
+    req: DeviceActionAckRequest,
+    db: Session = Depends(get_db_session),
+    x_device_token: str | None = Header(default=None),
+) -> dict:
+    require_device_access(device_id, x_device_token)
+    registration_code = req.registration_code.strip().upper()
+    device = db.get(DeviceRegistration, registration_code)
+    if device is None or device.device_id != device_id:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    action = req.action.strip().lower()
+    if device.pending_action and device.pending_action == action:
+        device.pending_action = None
+        device.pending_action_requested_at = None
+
+    device.last_action = action
+    device.last_action_status = req.status.strip().lower()
+    device.last_action_at = now_utc()
+    device.updated_at = now_utc()
+    db.commit()
+    return {"status": "acknowledged"}
 
 
 @app.get("/api/v1/devices/{device_id}/config")
@@ -783,4 +940,5 @@ def get_device_config(
         "device_id": device_id,
         "registration_code": device.registration_code,
         "configured_url": device.target_url,
+        "pending_action": device.pending_action,
     }

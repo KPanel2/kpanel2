@@ -16,6 +16,7 @@ class BootstrapResult:
 class ResolveResult:
     status: str
     configured_url: str | None = None
+    pending_action: str | None = None
     error: str = ""
 
 
@@ -67,11 +68,18 @@ class KPanelApiClient:
             device_token=str(data.get("device_token", "")).strip(),
         )
 
-    def resolve_registration(self, device_id: str, registration_code: str) -> ResolveResult:
+    def resolve_registration(
+        self,
+        device_id: str,
+        registration_code: str,
+        client_version: str | None = None,
+    ) -> ResolveResult:
         payload = {
             "device_id": device_id,
             "registration_code": registration_code,
         }
+        if client_version:
+            payload["client_version"] = client_version
         try:
             resp = requests.post(
                 f"{self.base_url}/api/v1/devices/resolve",
@@ -94,9 +102,13 @@ class KPanelApiClient:
         if data.get("status") != "configured":
             return ResolveResult(status="pending")
 
-        return ResolveResult(status="configured", configured_url=data.get("configured_url"))
+        return ResolveResult(
+            status="configured",
+            configured_url=data.get("configured_url"),
+            pending_action=data.get("pending_action"),
+        )
 
-    def get_device_config(self, device_id: str) -> Optional[str]:
+    def get_device_config(self, device_id: str) -> ResolveResult:
         try:
             resp = requests.get(
                 f"{self.base_url}/api/v1/devices/{device_id}/config",
@@ -105,12 +117,42 @@ class KPanelApiClient:
             )
             data = resp.json()
         except requests.RequestException:
-            return None
+            return ResolveResult(status="unreachable")
+        except ValueError:
+            return ResolveResult(status="error", error="bad-response")
 
         if resp.status_code != 200:
-            return None
+            return ResolveResult(status="error", error=f"http-{resp.status_code}")
 
         if data.get("status") != "configured":
-            return None
+            return ResolveResult(status=data.get("status", "pending"))
 
-        return data.get("configured_url")
+        return ResolveResult(
+            status="configured",
+            configured_url=data.get("configured_url"),
+            pending_action=data.get("pending_action"),
+        )
+
+    def ack_device_action(
+        self,
+        device_id: str,
+        registration_code: str,
+        action: str,
+        status: str,
+    ) -> bool:
+        payload = {
+            "registration_code": registration_code,
+            "action": action,
+            "status": status,
+        }
+        try:
+            resp = requests.post(
+                f"{self.base_url}/api/v1/devices/{device_id}/actions/ack",
+                json=payload,
+                headers=self._headers(),
+                timeout=10,
+            )
+        except requests.RequestException:
+            return False
+
+        return resp.status_code == 200

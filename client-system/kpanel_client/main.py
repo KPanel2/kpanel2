@@ -1,3 +1,4 @@
+import subprocess
 import time
 import traceback
 
@@ -16,6 +17,40 @@ from kpanel_client.ui import (
     show_wifi_setup_prompt,
 )
 from kpanel_client.wifi_onboarding import prompt_and_connect_wifi
+
+
+def _run_pending_action(api: KPanelApiClient, cfg: ClientConfig, registration_code: str, action: str) -> None:
+    normalized = (action or "").strip().lower()
+    if normalized not in {"update", "reboot"}:
+        return
+
+    if normalized == "update":
+        api.ack_device_action(
+            cfg.device_id,
+            registration_code,
+            action="update",
+            status="started",
+        )
+        result = subprocess.run(
+            ["sh", "-lc", "apt-get update && apt-get install -y --only-upgrade kpanel-client"],
+            check=False,
+        )
+        status = "completed" if result.returncode == 0 else "failed"
+        api.ack_device_action(
+            cfg.device_id,
+            registration_code,
+            action="update",
+            status=status,
+        )
+        return
+
+    api.ack_device_action(
+        cfg.device_id,
+        registration_code,
+        action="reboot",
+        status="started",
+    )
+    subprocess.run(["systemctl", "reboot"], check=False)
 
 
 def run() -> None:
@@ -100,7 +135,11 @@ def run() -> None:
         if state_changed:
             persist_state(cfg.state_path, state)
 
-        resolved = api.resolve_registration(cfg.device_id, state.registration_code)
+        resolved = api.resolve_registration(
+            cfg.device_id,
+            state.registration_code,
+            client_version=cfg.client_version,
+        )
 
         if resolved.status == "invalid-token":
             hide_registration_prompt()
@@ -126,6 +165,9 @@ def run() -> None:
             )
             time.sleep(cfg.poll_interval_sec)
             continue
+
+        if resolved.pending_action:
+            _run_pending_action(api, cfg, state.registration_code, resolved.pending_action)
 
         hide_registration_prompt()
         launch_kiosk(resolved.configured_url)

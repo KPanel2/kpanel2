@@ -330,6 +330,13 @@
       color: var(--text);
     }
 
+    .device-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
     code {
       color: var(--primary);
       font-family: "JetBrains Mono", monospace;
@@ -652,7 +659,16 @@
               <div class="muted">Code: <code>${device.registration_code}</code></div>
               <div class="muted">Device ID: <code>${device.device_id}</code></div>
               <div class="muted">Target URL: ${device.target_url || 'Pending'}</div>
+              <div class="muted">Client version: ${device.client_version || 'Unknown'}</div>
+              <div class="muted">Pending action: ${device.pending_action || 'None'}</div>
+              <div class="muted">Last action: ${device.last_action || 'None'} (${device.last_action_status || 'n/a'})</div>
               <div class="muted">Last seen: ${device.last_seen_at || 'Unknown'}</div>
+              <div class="device-actions">
+                <button type="button" class="secondary" data-device-edit="${device.registration_code}">Edit</button>
+                <button type="button" class="secondary" data-device-action="update" data-registration-code="${device.registration_code}">Push update</button>
+                <button type="button" class="secondary" data-device-action="reboot" data-registration-code="${device.registration_code}">Reboot panel</button>
+                <button type="button" class="secondary" data-device-delete="${device.registration_code}">Delete registration</button>
+              </div>
             </div>
           `).join('')}
         </div>
@@ -797,6 +813,87 @@
           }
         });
       }
+
+      document.querySelectorAll('[data-device-edit]').forEach((button) => {
+        button.addEventListener('click', async () => {
+          const registrationCode = button.dataset.deviceEdit;
+          const current = sessionState?.user?.devices?.find((item) => item.registration_code === registrationCode);
+          if (!current) {
+            return;
+          }
+
+          const displayName = window.prompt('Panel name', current.display_name || '');
+          if (displayName === null) {
+            return;
+          }
+
+          const targetUrl = window.prompt('Display URL', current.target_url || '');
+          if (targetUrl === null) {
+            return;
+          }
+
+          setMessage('pending', 'Updating panel registration...');
+          try {
+            await api(`/api/v1/account/devices/${encodeURIComponent(registrationCode)}`, {
+              method: 'PATCH',
+              body: JSON.stringify({
+                display_name: displayName.trim(),
+                target_url: targetUrl.trim(),
+              }),
+            });
+            await loadSession();
+          } catch (error) {
+            setMessage('error', error.message);
+          }
+        });
+      });
+
+      document.querySelectorAll('[data-device-delete]').forEach((button) => {
+        button.addEventListener('click', async () => {
+          const registrationCode = button.dataset.deviceDelete;
+          const confirmed = window.confirm(`Delete registration ${registrationCode}? This panel will need to be claimed again.`);
+          if (!confirmed) {
+            return;
+          }
+
+          setMessage('pending', 'Deleting panel registration...');
+          try {
+            await api(`/api/v1/account/devices/${encodeURIComponent(registrationCode)}`, {
+              method: 'DELETE',
+            });
+            await loadSession();
+          } catch (error) {
+            setMessage('error', error.message);
+          }
+        });
+      });
+
+      document.querySelectorAll('[data-device-action]').forEach((button) => {
+        button.addEventListener('click', async () => {
+          const action = button.dataset.deviceAction;
+          const registrationCode = button.dataset.registrationCode;
+          if (!action || !registrationCode) {
+            return;
+          }
+
+          const promptText = action === 'reboot'
+            ? `Queue reboot for panel ${registrationCode}?`
+            : `Queue update for panel ${registrationCode}?`;
+          if (!window.confirm(promptText)) {
+            return;
+          }
+
+          setMessage('pending', `Queueing ${action} action...`);
+          try {
+            await api(`/api/v1/account/devices/${encodeURIComponent(registrationCode)}/actions/${encodeURIComponent(action)}`, {
+              method: 'POST',
+            });
+            await loadSession();
+          } catch (error) {
+            setMessage('error', error.message);
+          }
+        });
+      });
     }
 
     async function loadSession() {
