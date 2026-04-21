@@ -337,6 +337,32 @@
       margin-top: 12px;
     }
 
+    .device-edit {
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: rgba(11, 29, 51, 0.62);
+      display: none;
+      gap: 10px;
+    }
+
+    .device-edit.active {
+      display: grid;
+    }
+
+    .device-edit label {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--muted);
+    }
+
+    .device-edit input {
+      padding: 11px 12px;
+      font-size: 0.92rem;
+      border-radius: 10px;
+    }
+
     code {
       color: var(--primary);
       font-family: "JetBrains Mono", monospace;
@@ -663,6 +689,22 @@
               <div class="muted">Pending action: ${device.pending_action || 'None'}</div>
               <div class="muted">Last action: ${device.last_action || 'None'} (${device.last_action_status || 'n/a'})</div>
               <div class="muted">Last seen: ${device.last_seen_at || 'Unknown'}</div>
+
+              <div class="device-edit" data-device-edit-form="${device.registration_code}">
+                <div class="field">
+                  <label for="edit-name-${device.registration_code}">Panel name</label>
+                  <input id="edit-name-${device.registration_code}" data-device-edit-name="${device.registration_code}" value="${device.display_name || ''}" />
+                </div>
+                <div class="field">
+                  <label for="edit-url-${device.registration_code}">Target URL</label>
+                  <input id="edit-url-${device.registration_code}" data-device-edit-url="${device.registration_code}" value="${device.target_url || ''}" placeholder="https://dashboard.example.com/panel" />
+                </div>
+                <div class="device-actions">
+                  <button type="button" class="primary" data-device-save="${device.registration_code}">Save</button>
+                  <button type="button" class="secondary" data-device-cancel="${device.registration_code}">Cancel</button>
+                </div>
+              </div>
+
               <div class="device-actions">
                 <button type="button" class="secondary" data-device-edit="${device.registration_code}">Edit</button>
                 <button type="button" class="secondary" data-device-action="update" data-registration-code="${device.registration_code}">Push update</button>
@@ -815,20 +857,52 @@
       }
 
       document.querySelectorAll('[data-device-edit]').forEach((button) => {
-        button.addEventListener('click', async () => {
+        button.addEventListener('click', () => {
           const registrationCode = button.dataset.deviceEdit;
+          const form = document.querySelector(`[data-device-edit-form="${registrationCode}"]`);
+          if (!form) {
+            return;
+          }
+
+          form.classList.add('active');
+        });
+      });
+
+      document.querySelectorAll('[data-device-cancel]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const registrationCode = button.dataset.deviceCancel;
+          const form = document.querySelector(`[data-device-edit-form="${registrationCode}"]`);
           const current = sessionState?.user?.devices?.find((item) => item.registration_code === registrationCode);
-          if (!current) {
+          const nameInput = document.querySelector(`[data-device-edit-name="${registrationCode}"]`);
+          const urlInput = document.querySelector(`[data-device-edit-url="${registrationCode}"]`);
+
+          if (nameInput && current) {
+            nameInput.value = current.display_name || '';
+          }
+          if (urlInput && current) {
+            urlInput.value = current.target_url || '';
+          }
+          if (form) {
+            form.classList.remove('active');
+          }
+        });
+      });
+
+      document.querySelectorAll('[data-device-save]').forEach((button) => {
+        button.addEventListener('click', async () => {
+          const registrationCode = button.dataset.deviceSave;
+          const nameInput = document.querySelector(`[data-device-edit-name="${registrationCode}"]`);
+          const urlInput = document.querySelector(`[data-device-edit-url="${registrationCode}"]`);
+          const form = document.querySelector(`[data-device-edit-form="${registrationCode}"]`);
+          if (!registrationCode || !nameInput || !urlInput) {
             return;
           }
 
-          const displayName = window.prompt('Panel name', current.display_name || '');
-          if (displayName === null) {
-            return;
-          }
+          const displayName = nameInput.value.trim();
+          const targetUrl = urlInput.value.trim();
 
-          const targetUrl = window.prompt('Display URL', current.target_url || '');
-          if (targetUrl === null) {
+          if (!targetUrl) {
+            setMessage('error', 'Target URL is required.');
             return;
           }
 
@@ -841,6 +915,9 @@
                 target_url: targetUrl.trim(),
               }),
             });
+            if (form) {
+              form.classList.remove('active');
+            }
             await loadSession();
           } catch (error) {
             setMessage('error', error.message);

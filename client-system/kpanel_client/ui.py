@@ -8,6 +8,8 @@ from kpanel_client.brand_ui import branded_action_dialog, branded_info_dialog
 
 _registration_overlay_proc: Optional[subprocess.Popen] = None
 _registration_overlay_key: tuple[str, str, str] | None = None
+_kiosk_proc: Optional[subprocess.Popen] = None
+_kiosk_url: str | None = None
 
 
 def _stop_registration_overlay() -> None:
@@ -37,6 +39,18 @@ def _open_network_tools() -> bool:
 
 def hide_registration_prompt() -> None:
     _stop_registration_overlay()
+
+
+def stop_kiosk() -> None:
+    global _kiosk_proc, _kiosk_url
+    if _kiosk_proc and _kiosk_proc.poll() is None:
+        _kiosk_proc.terminate()
+        try:
+            _kiosk_proc.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            _kiosk_proc.kill()
+    _kiosk_proc = None
+    _kiosk_url = None
 
 
 def show_wifi_setup_prompt() -> None:
@@ -182,17 +196,27 @@ def show_token_reset_prompt(registration_code: str) -> None:
 
 
 def launch_kiosk(url: str) -> None:
-    print(f"Launching kiosk for URL: {url}")
-    # Chromium kiosk arguments keep the browser full-screen and minimal.
+    global _kiosk_proc, _kiosk_url
+
+    normalized_url = (url or "").strip()
+    if not normalized_url:
+        return
+
+    if _kiosk_proc and _kiosk_proc.poll() is None and _kiosk_url == normalized_url:
+        return
+
+    stop_kiosk()
+
+    print(f"Launching kiosk for URL: {normalized_url}")
     browser_command = shutil.which("chromium") or shutil.which("chromium-browser") or "chromium-browser"
-    subprocess.run(
+    _kiosk_proc = subprocess.Popen(
         [
             browser_command,
             "--kiosk",
             "--incognito",
             "--disable-pinch",
             "--overscroll-history-navigation=0",
-            url,
-        ],
-        check=False,
+            normalized_url,
+        ]
     )
+    _kiosk_url = normalized_url

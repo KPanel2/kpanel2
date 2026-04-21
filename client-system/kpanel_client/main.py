@@ -1,6 +1,7 @@
 import subprocess
 import time
 import traceback
+from pathlib import Path
 
 from kpanel_client.api import KPanelApiClient
 from kpanel_client.config import ClientConfig
@@ -13,6 +14,7 @@ from kpanel_client.ui import (
     launch_kiosk,
     show_hotspot_prompt,
     show_registration_prompt,
+    stop_kiosk,
     show_token_reset_prompt,
     show_wifi_setup_prompt,
 )
@@ -53,10 +55,31 @@ def _run_pending_action(api: KPanelApiClient, cfg: ClientConfig, registration_co
     subprocess.run(["systemctl", "reboot"], check=False)
 
 
+def _current_boot_id() -> str:
+    for candidate in ("/proc/sys/kernel/random/boot_id",):
+        try:
+            value = Path(candidate).read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+        if value:
+            return value
+    return ""
+
+
 def run() -> None:
     cfg = ClientConfig()
     api = KPanelApiClient(cfg.api_base_url, device_token=cfg.device_token)
     state = load_or_create_state(cfg.state_path, cfg.registration_code)
+
+    # Keep registration codes single-use by rotating at every reboot.
+    if not cfg.registration_code.strip():
+        boot_id = _current_boot_id()
+        if boot_id and state.last_boot_id != boot_id:
+            state.registration_code = generate_registration_code()
+            state.device_token = ""
+            state.last_boot_id = boot_id
+            persist_state(cfg.state_path, state)
+
     if state.device_token:
         api.set_device_token(state.device_token)
     hotspot_started = False
@@ -65,6 +88,7 @@ def run() -> None:
         online = has_internet(cfg.internet_check_url)
         if not online:
             hide_registration_prompt()
+            stop_kiosk()
             if cfg.wifi_enabled:
                 if cfg.wifi_ui_enabled:
                     wifi_result = prompt_and_connect_wifi(
@@ -104,6 +128,7 @@ def run() -> None:
 
         if not api.is_reachable():
             hide_registration_prompt()
+            stop_kiosk()
             show_api_unreachable_prompt(cfg.api_base_url)
             time.sleep(cfg.poll_interval_sec)
             continue
@@ -115,6 +140,7 @@ def run() -> None:
         bootstrap_result = api.bootstrap_device(cfg.device_id, state.registration_code)
         if not bootstrap_result.ok:
             hide_registration_prompt()
+            stop_kiosk()
             show_api_unreachable_prompt(cfg.api_base_url)
             time.sleep(cfg.poll_interval_sec)
             continue
@@ -143,6 +169,7 @@ def run() -> None:
 
         if resolved.status == "invalid-token":
             hide_registration_prompt()
+            stop_kiosk()
             state.device_token = ""
             api.set_device_token("")
             state.registration_code = generate_registration_code()
@@ -153,11 +180,13 @@ def run() -> None:
 
         if resolved.status == "unreachable":
             hide_registration_prompt()
+            stop_kiosk()
             show_api_unreachable_prompt(cfg.api_base_url)
             time.sleep(cfg.poll_interval_sec)
             continue
 
         if resolved.status != "configured" or not resolved.configured_url:
+            stop_kiosk()
             show_registration_prompt(
                 device_id=cfg.device_id,
                 registration_code=state.registration_code,
