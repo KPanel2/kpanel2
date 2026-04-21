@@ -1,5 +1,3 @@
-#!/bin/bash -e
-
 if [ ! -f /usr/local/src/kpanel-client.deb ]; then
   echo "Missing /usr/local/src/kpanel-client.deb in image stage"
   exit 1

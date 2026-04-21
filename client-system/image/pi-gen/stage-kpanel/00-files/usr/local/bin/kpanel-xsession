@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+LOG_DIR=/tmp/kpanel-client
+mkdir -p "$LOG_DIR"
+
+{
+	echo "===== $(date -Iseconds) xsession start ====="
+	echo "DISPLAY=${DISPLAY:-}"
+	echo "XDG_SESSION_TYPE=${XDG_SESSION_TYPE:-}"
+} >>"$LOG_DIR/xsession.log"
+
+xset s off || true
+xset -dpms || true
+xset s noblank || true
+
+/usr/local/bin/kpanel-client-launcher.sh >>"$LOG_DIR/xsession.log" 2>&1 &
+
+exec /usr/bin/openbox-session

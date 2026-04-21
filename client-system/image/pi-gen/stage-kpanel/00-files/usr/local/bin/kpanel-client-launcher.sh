@@ -1,6 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+LOCK_FILE=/tmp/kpanel-client-launcher.lock
+LOG_DIR=/tmp/kpanel-client
+LOG_FILE="$LOG_DIR/launcher.log"
+
+mkdir -p "$LOG_DIR"
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+	echo "Another KPanel launcher instance is already running" >>"$LOG_FILE"
+	exit 0
+fi
+
 CONF_FILE=/etc/default/kpanel-client
 if [[ -f "$CONF_FILE" ]]; then
 	# shellcheck disable=SC1090
@@ -30,7 +41,43 @@ else
 	export KPANEL_API_BASE_URL_OVERRIDE="$MODE_URL"
 fi
 
+export PYTHONPATH="/opt/kpanel-client${PYTHONPATH:+:$PYTHONPATH}"
+
+if [[ -f /etc/kpanel/debug-shell ]]; then
+	echo "Debug shell flag present; skipping kiosk launcher" >>"$LOG_FILE"
+	if command -v xterm >/dev/null 2>&1; then
+		exec xterm -fa Monospace -fs 12 -hold -e sh -lc 'echo "KPanel debug shell mode active."; echo "Remove /etc/kpanel/debug-shell to resume kiosk auto-start."; exec bash'
+	fi
+	exit 0
+fi
+
 # Give desktop/network stack a moment to settle after login.
 sleep 5
 
-exec /opt/kpanel-client/.venv/bin/python -m kpanel_client.main
+{
+	echo "===== $(date -Iseconds) launcher start ====="
+	echo "DISPLAY=${DISPLAY:-}"
+	echo "XDG_SESSION_TYPE=${XDG_SESSION_TYPE:-}"
+	echo "API_BASE=${KPANEL_API_BASE_URL_OVERRIDE:-}"
+} >>"$LOG_FILE"
+
+status=0
+set +e
+/opt/kpanel-client/.venv/bin/python -m kpanel_client.main >>"$LOG_FILE" 2>&1
+status=$?
+set -e
+
+if [[ "$status" -eq 0 ]]; then
+	exit 0
+fi
+
+{
+	echo "KPanel launcher exited with status $status"
+	echo "===== $(date -Iseconds) launcher failure ====="
+} >>"$LOG_FILE"
+
+if command -v xterm >/dev/null 2>&1; then
+	exec xterm -fa Monospace -fs 11 -hold -e sh -lc 'echo "KPanel startup failed. Recent log output:"; echo; tail -n 200 "'$LOG_FILE'"'
+fi
+
+exit "$status"

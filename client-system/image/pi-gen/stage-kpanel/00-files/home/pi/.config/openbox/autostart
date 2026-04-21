@@ -1,0 +1,3 @@
+#!/bin/sh
+
+/usr/local/bin/kpanel-client-launcher.sh &

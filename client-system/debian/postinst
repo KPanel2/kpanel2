@@ -2,16 +2,48 @@
 set -euo pipefail
 
 INSTALL_DIR=/opt/kpanel-client
+STATE_DIR=/var/lib/kpanel-client
 SERVICE_NAME=kpanel-client.service
+LAUNCHER_NAME=kpanel-client-launcher.sh
+MODE_HELPER_NAME=kpanel-set-mode
+DEFAULTS_DIR=/etc/default
+
+resolve_runtime_owner() {
+	local service_user=""
+
+	if [[ -f "/usr/share/kpanel-client/systemd/$SERVICE_NAME" ]]; then
+		service_user="$(sed -n 's/^User=//p' "/usr/share/kpanel-client/systemd/$SERVICE_NAME" | head -n 1)"
+	fi
+
+	for candidate in "$service_user" pi kpanel; do
+		if [[ -n "$candidate" ]] && id -u "$candidate" >/dev/null 2>&1; then
+			printf '%s\n' "$candidate"
+			return 0
+		fi
+	done
+
+	printf '%s\n' root
+}
 
 mkdir -p "$INSTALL_DIR"
 cp -r /usr/share/kpanel-client/kpanel_client /usr/share/kpanel-client/requirements.txt "$INSTALL_DIR/"
 
 python3 -m venv "$INSTALL_DIR/.venv"
+export PYTHONPATH="$INSTALL_DIR${PYTHONPATH:+:$PYTHONPATH}"
 "$INSTALL_DIR/.venv/bin/pip" install --upgrade pip
 "$INSTALL_DIR/.venv/bin/pip" install -r "$INSTALL_DIR/requirements.txt"
 
 cp /usr/share/kpanel-client/systemd/$SERVICE_NAME /etc/systemd/system/$SERVICE_NAME
+cp /usr/share/kpanel-client/bin/$LAUNCHER_NAME /usr/local/bin/$LAUNCHER_NAME
+cp /usr/share/kpanel-client/bin/$MODE_HELPER_NAME /usr/local/bin/$MODE_HELPER_NAME
+chmod 755 /usr/local/bin/$LAUNCHER_NAME /usr/local/bin/$MODE_HELPER_NAME
+mkdir -p "$STATE_DIR"
+RUNTIME_OWNER="$(resolve_runtime_owner)"
+chown -R "$RUNTIME_OWNER:$RUNTIME_OWNER" "$INSTALL_DIR" "$STATE_DIR"
+mkdir -p "$DEFAULTS_DIR"
+if [ ! -f "$DEFAULTS_DIR/kpanel-client" ]; then
+	cp /usr/share/kpanel-client/defaults/kpanel-client "$DEFAULTS_DIR/kpanel-client"
+fi
 systemctl daemon-reload
 systemctl enable "$SERVICE_NAME"
 systemctl restart "$SERVICE_NAME"

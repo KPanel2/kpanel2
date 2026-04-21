@@ -1,4 +1,5 @@
 import time
+import traceback
 
 from kpanel_client.api import KPanelApiClient
 from kpanel_client.config import ClientConfig
@@ -6,6 +7,7 @@ from kpanel_client.device_state import generate_registration_code, load_or_creat
 from kpanel_client.hotspot import start_hotspot, stop_hotspot
 from kpanel_client.network import has_internet
 from kpanel_client.ui import (
+    hide_registration_prompt,
     show_api_unreachable_prompt,
     launch_kiosk,
     show_hotspot_prompt,
@@ -27,6 +29,7 @@ def run() -> None:
     while True:
         online = has_internet(cfg.internet_check_url)
         if not online:
+            hide_registration_prompt()
             if cfg.wifi_enabled:
                 if cfg.wifi_ui_enabled:
                     wifi_result = prompt_and_connect_wifi(
@@ -49,10 +52,14 @@ def run() -> None:
                         )
                         if hotspot_started:
                             show_hotspot_prompt(cfg.hotspot_ssid, cfg.hotspot_password)
+                        else:
+                            show_wifi_setup_prompt()
+                    elif wifi_result == "no-networks":
+                        show_wifi_setup_prompt()
                 else:
                     show_wifi_setup_prompt()
             else:
-                print("No internet and Wi-Fi onboarding disabled.")
+                show_wifi_setup_prompt()
             time.sleep(cfg.poll_interval_sec)
             continue
 
@@ -61,6 +68,7 @@ def run() -> None:
             hotspot_started = False
 
         if not api.is_reachable():
+            hide_registration_prompt()
             show_api_unreachable_prompt(cfg.api_base_url)
             time.sleep(cfg.poll_interval_sec)
             continue
@@ -71,6 +79,7 @@ def run() -> None:
 
         bootstrap_result = api.bootstrap_device(cfg.device_id, state.registration_code)
         if not bootstrap_result.ok:
+            hide_registration_prompt()
             show_api_unreachable_prompt(cfg.api_base_url)
             time.sleep(cfg.poll_interval_sec)
             continue
@@ -94,6 +103,7 @@ def run() -> None:
         resolved = api.resolve_registration(cfg.device_id, state.registration_code)
 
         if resolved.status == "invalid-token":
+            hide_registration_prompt()
             state.device_token = ""
             api.set_device_token("")
             state.registration_code = generate_registration_code()
@@ -103,6 +113,7 @@ def run() -> None:
             continue
 
         if resolved.status == "unreachable":
+            hide_registration_prompt()
             show_api_unreachable_prompt(cfg.api_base_url)
             time.sleep(cfg.poll_interval_sec)
             continue
@@ -116,9 +127,14 @@ def run() -> None:
             time.sleep(cfg.poll_interval_sec)
             continue
 
+        hide_registration_prompt()
         launch_kiosk(resolved.configured_url)
         time.sleep(cfg.poll_interval_sec)
 
 
 if __name__ == "__main__":
-    run()
+    try:
+        run()
+    except Exception:
+        traceback.print_exc()
+        raise
