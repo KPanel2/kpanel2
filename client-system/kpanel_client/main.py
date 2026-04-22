@@ -71,12 +71,9 @@ def run() -> None:
     api = KPanelApiClient(cfg.api_base_url, device_token=cfg.device_token)
     state = load_or_create_state(cfg.state_path, cfg.registration_code)
 
-    # Keep registration codes single-use by rotating at every reboot.
     if not cfg.registration_code.strip():
         boot_id = _current_boot_id()
         if boot_id and state.last_boot_id != boot_id:
-            state.registration_code = generate_registration_code()
-            state.device_token = ""
             state.last_boot_id = boot_id
             persist_state(cfg.state_path, state)
 

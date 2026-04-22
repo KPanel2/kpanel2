@@ -845,7 +845,7 @@
               body: JSON.stringify({
                 registration_code: document.getElementById('registrationCode').value.trim(),
                 display_name: document.getElementById('deviceDisplayName').value.trim(),
-                target_url: document.getElementById('targetUrl').value.trim(),
+                target_url: document.getElementById('targetUrl').value.trim() || null,
               }),
             });
             claimDeviceForm.reset();

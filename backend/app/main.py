@@ -78,7 +78,7 @@ class AccountCreateRequest(BaseModel):
 
 class ClaimDeviceRequest(BaseModel):
     registration_code: str
-    target_url: HttpUrl
+    target_url: HttpUrl | None = None
     display_name: str | None = None
 
 
@@ -688,11 +688,12 @@ def account_claim_device(
     timestamp = now_utc()
     device.user_id = user.id
     device.display_name = (req.display_name or device.display_name or req.registration_code).strip()
-    device.target_url = str(req.target_url)
+    if req.target_url is not None:
+        device.target_url = str(req.target_url)
     device.claimed_at = timestamp
     device.updated_at = timestamp
     db.commit()
-    return {"status": "configured", "device": _serialize_device(device)}
+    return {"status": "configured" if device.target_url else "claimed", "device": _serialize_device(device)}
 
 
 @app.patch("/api/v1/account/devices/{registration_code}")
