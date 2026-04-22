@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, HttpUrl, field_validator
 from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
@@ -80,6 +80,13 @@ class ClaimDeviceRequest(BaseModel):
     registration_code: str
     target_url: HttpUrl | None = None
     display_name: str | None = None
+
+    @field_validator("target_url", mode="before")
+    @classmethod
+    def _coerce_empty_url(cls, v: object) -> object:
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
 
 
 class DeviceBootstrapRequest(BaseModel):
