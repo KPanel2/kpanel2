@@ -11,7 +11,7 @@ BUILD_DIR="$ROOT_DIR/build/vm-image"
 WORK_DIR="${KPANEL_VM_WORK_DIR:-/tmp/kpanel-vm-image}"
 VERSION="${VERSION_RAW#v}"
 DEB_PATH="$ROOT_DIR/build/kpanel-client_${VERSION}_all.deb"
-BASE_IMAGE_URL="${KPANEL_VM_BASE_IMAGE_URL:-https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2}"
+BASE_IMAGE_URL="${KPANEL_VM_BASE_IMAGE_URL:-https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-generic-amd64.qcow2}"
 BASE_IMAGE_SHA_URL="${KPANEL_VM_BASE_IMAGE_SHA_URL:-https://cloud.debian.org/images/cloud/bookworm/latest/SHA512SUMS}"
 BASE_IMAGE_NAME="$(basename "$BASE_IMAGE_URL")"
 BASE_IMAGE_PATH="$WORK_DIR/$BASE_IMAGE_NAME"
@@ -59,12 +59,13 @@ ensure_host_build_dependencies() {
 		e2fsprogs
 		gdisk
 		kmod
+		parted
 		qemu-system-x86
 		qemu-utils
 		xz-utils
 	)
 
-	for command_name in curl qemu-img qemu-nbd lsblk partprobe sha512sum growpart resize2fs; do
+	for command_name in curl qemu-img qemu-nbd lsblk partprobe sha512sum growpart resize2fs parted; do
 		if ! command -v "$command_name" >/dev/null 2>&1; then
 			missing=1
 			break
@@ -165,7 +166,7 @@ run_full_build() {
 	mkdir -p "$BUILD_DIR"
 	rm -f "$OUTPUT_QCOW2" "$OUTPUT_QCOW2.sha256" "$OUTPUT_RAW" "$OUTPUT_RAW.xz" "$OUTPUT_RAW.xz.sha256"
 	cp "$BASE_IMAGE_PATH" "$OUTPUT_QCOW2"
-	qemu-img resize -f qcow2 "$OUTPUT_QCOW2" 20G
+	qemu-img resize -f qcow2 "$OUTPUT_QCOW2" 12G
 
 	VM_NBD_DEVICE="$(attach_nbd "$OUTPUT_QCOW2")"
 	sudo partprobe "$VM_NBD_DEVICE"
@@ -180,14 +181,22 @@ run_full_build() {
 	efi_partition="$(find_efi_partition "$VM_NBD_DEVICE")"
 
 	# Expand the root partition to use available space
-	sudo growpart "$VM_NBD_DEVICE" "${root_partition##*nbd[0-9]}" || true
+	# Extract partition number (e.g., "1" from "/dev/nbd0p1")
+	local partition_num
+	partition_num="${root_partition##*p}"
+	echo "Expanding partition $partition_num on $VM_NBD_DEVICE..."
+	sudo growpart "$VM_NBD_DEVICE" "$partition_num" || {
+		echo "Warning: growpart failed, attempting parted..."
+		sudo parted -s "$VM_NBD_DEVICE" resizepart "$partition_num" 100% || true
+	}
 	sudo partprobe "$VM_NBD_DEVICE"
 	sudo udevadm settle
 
 	sudo mount "$root_partition" "$VM_MOUNT_DIR"
 	
 	# Expand the filesystem to fill the partition
-	sudo resize2fs "$root_partition" || true
+	echo "Expanding filesystem on $root_partition..."
+	sudo resize2fs "$root_partition"
 	
 	if [[ -n "$efi_partition" ]]; then
 		sudo mkdir -p "$VM_MOUNT_DIR/boot/efi"
@@ -207,7 +216,7 @@ run_full_build() {
 	sudo chroot "$VM_MOUNT_DIR" /usr/bin/env DEBIAN_FRONTEND=noninteractive bash -lc '
 		set -euo pipefail
 		apt-get update
-		apt-get install -y sudo dbus-x11 lightdm openbox x11-xserver-utils xserver-xorg xserver-xorg-input-all xserver-xorg-input-libinput network-manager chromium qemu-guest-agent openssh-server xterm linux-image-amd64
+		apt-get install -y sudo dbus-x11 lightdm openbox x11-xserver-utils xserver-xorg xserver-xorg-input-all xserver-xorg-input-libinput network-manager chromium qemu-guest-agent openssh-server xterm spice-vdagent dmidecode
 		/tmp/configure-image.sh kpanel
 		apt-get clean
 		apt-get autoclean
