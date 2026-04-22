@@ -196,7 +196,7 @@ run_full_build() {
 	sudo chroot "$VM_MOUNT_DIR" /usr/bin/env DEBIAN_FRONTEND=noninteractive bash -lc '
 		set -euo pipefail
 		apt-get update
-		apt-get install -y sudo dbus-x11 lightdm openbox x11-xserver-utils xserver-xorg xserver-xorg-input-all xserver-xorg-input-libinput network-manager chromium qemu-guest-agent openssh-server xterm
+		apt-get install -y sudo dbus-x11 lightdm openbox x11-xserver-utils xserver-xorg xserver-xorg-input-all xserver-xorg-input-libinput network-manager chromium qemu-guest-agent openssh-server xterm linux-image-amd64
 		/tmp/configure-image.sh kpanel
 	'
 

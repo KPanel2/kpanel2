@@ -299,8 +299,29 @@ if [[ -f "$GRUB_DEFAULTS" ]]; then
 	else
 		echo 'GRUB_CMDLINE_LINUX_DEFAULT="quiet console=tty0 console=ttyS0,115200n8"' >> "$GRUB_DEFAULTS"
 	fi
+	if grep -q '^GRUB_DEFAULT=' "$GRUB_DEFAULTS"; then
+		sed -i 's/^GRUB_DEFAULT=.*/GRUB_DEFAULT=saved/' "$GRUB_DEFAULTS"
+	else
+		echo 'GRUB_DEFAULT=saved' >> "$GRUB_DEFAULTS"
+	fi
+	if grep -q '^GRUB_SAVEDEFAULT=' "$GRUB_DEFAULTS"; then
+		sed -i 's/^GRUB_SAVEDEFAULT=.*/GRUB_SAVEDEFAULT=true/' "$GRUB_DEFAULTS"
+	else
+		echo 'GRUB_SAVEDEFAULT=true' >> "$GRUB_DEFAULTS"
+	fi
+	if grep -q '^GRUB_DISABLE_SUBMENU=' "$GRUB_DEFAULTS"; then
+		sed -i 's/^GRUB_DISABLE_SUBMENU=.*/GRUB_DISABLE_SUBMENU=y/' "$GRUB_DEFAULTS"
+	else
+		echo 'GRUB_DISABLE_SUBMENU=y' >> "$GRUB_DEFAULTS"
+	fi
 	if command -v update-grub >/dev/null 2>&1; then
 		update-grub || true
+	fi
+	if command -v grub-set-default >/dev/null 2>&1; then
+		GENERIC_KERNEL="$(ls -1 /boot/vmlinuz-* 2>/dev/null | sed 's#.*/vmlinuz-##' | grep -E 'amd64$' | sort -V | tail -n 1 || true)"
+		if [[ -n "$GENERIC_KERNEL" ]]; then
+			grub-set-default "Debian GNU/Linux, with Linux $GENERIC_KERNEL" || true
+		fi
 	fi
 fi
 
