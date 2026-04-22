@@ -163,7 +163,7 @@ run_full_build() {
 	mkdir -p "$BUILD_DIR"
 	rm -f "$OUTPUT_QCOW2" "$OUTPUT_QCOW2.sha256" "$OUTPUT_RAW" "$OUTPUT_RAW.xz" "$OUTPUT_RAW.xz.sha256"
 	cp "$BASE_IMAGE_PATH" "$OUTPUT_QCOW2"
-	qemu-img resize -f qcow2 "$OUTPUT_QCOW2" 8G
+	qemu-img resize -f qcow2 "$OUTPUT_QCOW2" 16G
 
 	VM_NBD_DEVICE="$(attach_nbd "$OUTPUT_QCOW2")"
 	sudo partprobe "$VM_NBD_DEVICE"
@@ -198,6 +198,10 @@ run_full_build() {
 		apt-get update
 		apt-get install -y sudo dbus-x11 lightdm openbox x11-xserver-utils xserver-xorg xserver-xorg-input-all xserver-xorg-input-libinput network-manager chromium qemu-guest-agent openssh-server xterm linux-image-amd64
 		/tmp/configure-image.sh kpanel
+		apt-get clean
+		apt-get autoclean
+		rm -rf /var/cache/apt/archives/*
+		rm -rf /tmp/*
 	'
 
 	cleanup_vm_mounts
