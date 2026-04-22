@@ -54,7 +54,9 @@ require_command() {
 ensure_host_build_dependencies() {
 	local missing=0
 	local packages=(
+		cloud-guest-utils
 		curl
+		e2fsprogs
 		gdisk
 		kmod
 		qemu-system-x86
@@ -62,7 +64,7 @@ ensure_host_build_dependencies() {
 		xz-utils
 	)
 
-	for command_name in curl qemu-img qemu-nbd lsblk partprobe sha512sum; do
+	for command_name in curl qemu-img qemu-nbd lsblk partprobe sha512sum growpart resize2fs; do
 		if ! command -v "$command_name" >/dev/null 2>&1; then
 			missing=1
 			break
@@ -163,7 +165,7 @@ run_full_build() {
 	mkdir -p "$BUILD_DIR"
 	rm -f "$OUTPUT_QCOW2" "$OUTPUT_QCOW2.sha256" "$OUTPUT_RAW" "$OUTPUT_RAW.xz" "$OUTPUT_RAW.xz.sha256"
 	cp "$BASE_IMAGE_PATH" "$OUTPUT_QCOW2"
-	qemu-img resize -f qcow2 "$OUTPUT_QCOW2" 16G
+	qemu-img resize -f qcow2 "$OUTPUT_QCOW2" 20G
 
 	VM_NBD_DEVICE="$(attach_nbd "$OUTPUT_QCOW2")"
 	sudo partprobe "$VM_NBD_DEVICE"
@@ -177,7 +179,16 @@ run_full_build() {
 
 	efi_partition="$(find_efi_partition "$VM_NBD_DEVICE")"
 
+	# Expand the root partition to use available space
+	sudo growpart "$VM_NBD_DEVICE" "${root_partition##*nbd[0-9]}" || true
+	sudo partprobe "$VM_NBD_DEVICE"
+	sudo udevadm settle
+
 	sudo mount "$root_partition" "$VM_MOUNT_DIR"
+	
+	# Expand the filesystem to fill the partition
+	sudo resize2fs "$root_partition" || true
+	
 	if [[ -n "$efi_partition" ]]; then
 		sudo mkdir -p "$VM_MOUNT_DIR/boot/efi"
 		sudo mount "$efi_partition" "$VM_MOUNT_DIR/boot/efi"
