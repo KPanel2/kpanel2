@@ -220,13 +220,13 @@ jobs:
 
           RAW_BYTES="$(stat -c '%s' "$IMG_PATH")"
 
-          # Favor smallest output size over compression speed.
+          # Use broadly compatible XZ settings for Etcher/Raspberry Pi Imager.
           xz \
-            --threads=1 \
+            --threads=0 \
             --compress \
             --stdout \
-            --check=crc64 \
-            --lzma2=dict=256MiB,nice=273,pb=2,lc=3,lp=0,mode=normal,mf=bt4 \
+            --check=crc32 \
+            -9 \
             "$IMG_PATH" > "$XZ_PATH"
 
           xz -t "$XZ_PATH"
