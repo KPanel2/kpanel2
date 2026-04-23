@@ -75,6 +75,8 @@ def run() -> None:
         boot_id = _current_boot_id()
         if boot_id and state.last_boot_id != boot_id:
             state.last_boot_id = boot_id
+            state.registration_code = generate_registration_code()
+            state.device_token = ""
             persist_state(cfg.state_path, state)
 
     if state.device_token:

@@ -1,7 +1,10 @@
 import shutil
+import os
+import shlex
 import subprocess
 import sys
 from typing import Optional
+from urllib.parse import urlparse
 
 from kpanel_client.brand_ui import branded_action_dialog, branded_info_dialog
 
@@ -44,11 +47,22 @@ def hide_registration_prompt() -> None:
 def stop_kiosk() -> None:
     global _kiosk_proc, _kiosk_url
     if _kiosk_proc and _kiosk_proc.poll() is None:
-        _kiosk_proc.terminate()
+        try:
+            # Chromium can leave helper children behind; stop the full process group.
+            os.killpg(_kiosk_proc.pid, 15)
+        except ProcessLookupError:
+            pass
+        except OSError:
+            _kiosk_proc.terminate()
         try:
             _kiosk_proc.wait(timeout=3)
         except subprocess.TimeoutExpired:
-            _kiosk_proc.kill()
+            try:
+                os.killpg(_kiosk_proc.pid, 9)
+            except ProcessLookupError:
+                pass
+            except OSError:
+                _kiosk_proc.kill()
     _kiosk_proc = None
     _kiosk_url = None
 
@@ -202,6 +216,11 @@ def launch_kiosk(url: str) -> None:
     if not normalized_url:
         return
 
+    parsed = urlparse(normalized_url)
+    if parsed.scheme not in {"http", "https"}:
+        print(f"Skipping kiosk launch for unsupported URL scheme: {normalized_url}")
+        return
+
     if _kiosk_proc and _kiosk_proc.poll() is None and _kiosk_url == normalized_url:
         return
 
@@ -209,14 +228,24 @@ def launch_kiosk(url: str) -> None:
 
     print(f"Launching kiosk for URL: {normalized_url}")
     browser_command = shutil.which("chromium") or shutil.which("chromium-browser") or "chromium-browser"
+    user_data_dir = os.getenv("KPANEL_CHROMIUM_PROFILE_DIR", "/var/lib/kpanel-client/chromium-profile")
+    os.makedirs(user_data_dir, exist_ok=True)
+    extra_flags = shlex.split(os.getenv("KPANEL_CHROMIUM_FLAGS", ""))
     _kiosk_proc = subprocess.Popen(
         [
             browser_command,
             "--kiosk",
             "--incognito",
+            f"--user-data-dir={user_data_dir}",
+            "--disable-gpu",
+            "--no-first-run",
+            "--noerrdialogs",
+            "--disable-session-crashed-bubble",
             "--disable-pinch",
             "--overscroll-history-navigation=0",
+            *extra_flags,
             normalized_url,
-        ]
+        ],
+        start_new_session=True,
     )
     _kiosk_url = normalized_url

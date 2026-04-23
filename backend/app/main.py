@@ -83,9 +83,15 @@ class ClaimDeviceRequest(BaseModel):
 
     @field_validator("target_url", mode="before")
     @classmethod
-    def _coerce_empty_url(cls, v: object) -> object:
+    def _validate_target_url_scheme(cls, v: object) -> object:
         if isinstance(v, str) and not v.strip():
             return None
+        if isinstance(v, str):
+            cleaned = v.strip()
+            lowered = cleaned.lower()
+            if cleaned and not (lowered.startswith("http://") or lowered.startswith("https://")):
+                raise ValueError("Display URL must start with http:// or https://")
+            return cleaned
         return v
 
 
@@ -109,6 +115,19 @@ class DeviceActionAckRequest(BaseModel):
 class DeviceUpdateRequest(BaseModel):
     display_name: str | None = None
     target_url: HttpUrl | None = None
+
+    @field_validator("target_url", mode="before")
+    @classmethod
+    def _validate_target_url_scheme(cls, v: object) -> object:
+        if isinstance(v, str) and not v.strip():
+            return None
+        if isinstance(v, str):
+            cleaned = v.strip()
+            lowered = cleaned.lower()
+            if cleaned and not (lowered.startswith("http://") or lowered.startswith("https://")):
+                raise ValueError("Display URL must start with http:// or https://")
+            return cleaned
+        return v
 
 
 class RegistrationCreateRequest(BaseModel):

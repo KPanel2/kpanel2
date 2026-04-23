@@ -573,6 +573,94 @@
       return null;
     }
 
+    function validateHttpUrlInput(rawValue, required = true) {
+      const value = (rawValue || '').trim();
+      if (!value) {
+        if (required) {
+          return {
+            ok: false,
+            error: 'Display URL is required and must start with http:// or https://.',
+          };
+        }
+        return { ok: true, value: '' };
+      }
+
+      if (!/^https?:\/\//i.test(value)) {
+        return {
+          ok: false,
+          error: 'Display URL must start with http:// or https://.',
+        };
+      }
+
+      try {
+        const parsed = new URL(value);
+        if (!['http:', 'https:'].includes(parsed.protocol)) {
+          return {
+            ok: false,
+            error: 'Display URL must use the http:// or https:// protocol.',
+          };
+        }
+      } catch (error) {
+        return {
+          ok: false,
+          error: 'Display URL is not valid. Example: https://dashboard.example.com/panel',
+        };
+      }
+
+      return { ok: true, value };
+    }
+
+    function parseApiValidationError(detail) {
+      if (!Array.isArray(detail) || !detail.length) {
+        return '';
+      }
+
+      const messages = detail
+        .map((item) => {
+          const msg = String(item?.msg || '').trim();
+          const locParts = Array.isArray(item?.loc) ? item.loc.map((part) => String(part)) : [];
+          const field = locParts.length ? locParts[locParts.length - 1] : '';
+          if (!msg) {
+            return '';
+          }
+
+          if (field === 'target_url' || /url/i.test(msg)) {
+            return 'Display URL must be a full URL starting with http:// or https://.';
+          }
+
+          return field ? `${field}: ${msg}` : msg;
+        })
+        .filter(Boolean);
+
+      return messages.join('\n');
+    }
+
+    function getApiErrorMessage(data, statusText) {
+      const detail = data?.detail;
+      if (typeof detail === 'string' && detail.trim()) {
+        return detail;
+      }
+
+      const validationMessage = parseApiValidationError(detail);
+      if (validationMessage) {
+        return validationMessage;
+      }
+
+      if (typeof data?.message === 'string' && data.message.trim()) {
+        return data.message;
+      }
+
+      if (data && typeof data === 'object') {
+        try {
+          return JSON.stringify(data);
+        } catch (error) {
+          // Fall through to status text.
+        }
+      }
+
+      return statusText || 'Request failed.';
+    }
+
     async function api(path, options = {}) {
       const headers = {
         ...(options.body ? { 'Content-Type': 'application/json' } : {}),
@@ -589,7 +677,7 @@
       const data = contentType.includes('application/json') ? await response.json() : null;
 
       if (!response.ok) {
-        const detail = data?.detail || JSON.stringify(data) || response.statusText;
+        const detail = getApiErrorMessage(data, response.statusText);
         throw new Error(detail);
       }
 
@@ -838,6 +926,12 @@
       if (claimDeviceForm) {
         claimDeviceForm.addEventListener('submit', async (event) => {
           event.preventDefault();
+          const targetUrlValidation = validateHttpUrlInput(document.getElementById('targetUrl').value, false);
+          if (!targetUrlValidation.ok) {
+            setMessage('error', targetUrlValidation.error);
+            return;
+          }
+
           setMessage('pending', 'Claiming panel registration code...');
           try {
             await api('/api/v1/account/devices/claim', {
@@ -845,7 +939,7 @@
               body: JSON.stringify({
                 registration_code: document.getElementById('registrationCode').value.trim(),
                 display_name: document.getElementById('deviceDisplayName').value.trim(),
-                target_url: document.getElementById('targetUrl').value.trim() || null,
+                target_url: targetUrlValidation.value || null,
               }),
             });
             claimDeviceForm.reset();
@@ -901,8 +995,9 @@
           const displayName = nameInput.value.trim();
           const targetUrl = urlInput.value.trim();
 
-          if (!targetUrl) {
-            setMessage('error', 'Target URL is required.');
+          const targetUrlValidation = validateHttpUrlInput(targetUrl, true);
+          if (!targetUrlValidation.ok) {
+            setMessage('error', targetUrlValidation.error);
             return;
           }
 
@@ -912,7 +1007,7 @@
               method: 'PATCH',
               body: JSON.stringify({
                 display_name: displayName.trim(),
-                target_url: targetUrl.trim(),
+                target_url: targetUrlValidation.value,
               }),
             });
             if (form) {
