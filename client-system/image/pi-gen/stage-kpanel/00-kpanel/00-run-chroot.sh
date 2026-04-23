@@ -18,12 +18,24 @@ if command -v raspi-config >/dev/null 2>&1; then
   raspi-config nonint do_boot_behaviour B4 || true
 fi
 
+# Harden boot defaults in case noninteractive raspi-config does not persist.
+mkdir -p /etc/systemd/system
+ln -sf /lib/systemd/system/graphical.target /etc/systemd/system/default.target
+if [ -f /lib/systemd/system/lightdm.service ]; then
+  ln -sf /lib/systemd/system/lightdm.service /etc/systemd/system/display-manager.service
+fi
+
 install -d -m 755 -o pi -g pi /home/pi/.config /home/pi/.config/openbox
 chmod +x /usr/local/bin/kpanel-client-launcher.sh
 chmod +x /usr/local/bin/kpanel-xsession
 chmod +x /usr/local/bin/kpanel-set-mode
+chmod +x /usr/local/sbin/kpanel-pi-self-heal
 chmod +x /home/pi/.config/openbox/autostart
 chown pi:pi /home/pi/.config/openbox/autostart
+systemctl enable kpanel-pi-self-heal.service || true
+
+# Apply appliance defaults in-image immediately and reassert them on every boot.
+/usr/local/sbin/kpanel-pi-self-heal || true
 
 # Ensure chromium can start with user session defaults.
 if [ -f /etc/chromium-browser/default ]; then

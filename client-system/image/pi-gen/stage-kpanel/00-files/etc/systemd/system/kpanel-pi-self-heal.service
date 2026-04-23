@@ -1,0 +1,13 @@
+[Unit]
+Description=Reassert KPanel Pi appliance defaults
+DefaultDependencies=no
+After=local-fs.target systemd-user-sessions.service
+Before=display-manager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/kpanel-pi-self-heal
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

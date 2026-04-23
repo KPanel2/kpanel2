@@ -55,7 +55,7 @@ EOF
 
 cat > "$XSESSION_BIN" <<'EOF'
 #!/usr/bin/env bash
-set -euo pipefail
+set -u
 
 LOG_DIR=/tmp/kpanel-client
 mkdir -p "$LOG_DIR"
@@ -72,7 +72,17 @@ xset s noblank || true
 
 /usr/local/bin/kpanel-client-launcher.sh >>"$LOG_DIR/xsession.log" 2>&1 &
 
-exec /usr/bin/openbox-session
+if command -v openbox-session >/dev/null 2>&1; then
+	exec /usr/bin/openbox-session
+fi
+
+echo "openbox-session not found; falling back to xterm" >>"$LOG_DIR/xsession.log"
+if command -v xterm >/dev/null 2>&1; then
+	exec xterm -fa Monospace -fs 11 -hold -e sh -lc 'echo "KPanel desktop session fallback"; echo "openbox-session is missing."; echo "Check /tmp/kpanel-client/xsession.log and /tmp/kpanel-client/launcher.log"; exec bash'
+fi
+
+# Last-resort keepalive to avoid immediate LightDM relogin loop.
+exec sh -lc 'while true; do sleep 3600; done'
 EOF
 
 cat > "$AUTOSTART_DIR/autostart" <<'EOF'
