@@ -32,6 +32,8 @@ chmod +x /usr/local/bin/kpanel-set-mode
 chmod +x /usr/local/sbin/kpanel-pi-self-heal
 chmod +x /home/pi/.config/openbox/autostart
 chown pi:pi /home/pi/.config/openbox/autostart
+chmod 644 /home/pi/.dmrc
+chown pi:pi /home/pi/.dmrc
 systemctl enable kpanel-pi-self-heal.service || true
 
 # Apply appliance defaults in-image immediately and reassert them on every boot.

@@ -42,3 +42,19 @@ if [[ -f /home/$KPANEL_USER/.config/openbox/autostart ]]; then
   chmod 755 /home/$KPANEL_USER/.config/openbox/autostart
   chown "$KPANEL_USER:$KPANEL_USER" /home/$KPANEL_USER/.config/openbox/autostart
 fi
+
+if [[ -d /home/$KPANEL_USER ]]; then
+  cat > "/home/$KPANEL_USER/.dmrc" <<'EOF'
+[Desktop]
+Session=kpanel-openbox
+EOF
+  chmod 644 "/home/$KPANEL_USER/.dmrc"
+  chown "$KPANEL_USER:$KPANEL_USER" "/home/$KPANEL_USER/.dmrc"
+
+  cat > "/home/$KPANEL_USER/.xsession" <<'EOF'
+#!/bin/sh
+exec /usr/local/bin/kpanel-xsession
+EOF
+  chmod 755 "/home/$KPANEL_USER/.xsession"
+  chown "$KPANEL_USER:$KPANEL_USER" "/home/$KPANEL_USER/.xsession"
+fi
