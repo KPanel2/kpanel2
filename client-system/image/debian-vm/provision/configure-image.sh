@@ -73,7 +73,10 @@ xset s noblank || true
 /usr/local/bin/kpanel-client-launcher.sh >>"$LOG_DIR/xsession.log" 2>&1 &
 
 if command -v openbox-session >/dev/null 2>&1; then
-	exec /usr/bin/openbox-session
+	/usr/bin/openbox-session >>"$LOG_DIR/xsession.log" 2>&1 &
+	openbox_pid=$!
+	wait "$openbox_pid" || true
+	echo "openbox-session exited; holding session open to avoid relogin loop" >>"$LOG_DIR/xsession.log"
 fi
 
 echo "openbox-session not found; falling back to xterm" >>"$LOG_DIR/xsession.log"
