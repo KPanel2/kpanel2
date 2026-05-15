@@ -106,16 +106,16 @@ jobs:
         run: |
           set -euo pipefail
           cat >/tmp/pi-gen/config <<'EOF'
-          IMG_NAME='${{ steps.vars.outputs.image_name }}'
-          RELEASE='bookworm'
-          TARGET_HOSTNAME='kpanel'
-          FIRST_USER_NAME='pi'
-          FIRST_USER_PASS='kpanel'
-          DISABLE_FIRST_BOOT_USER_RENAME=1
-          ENABLE_SSH=1
-          DEPLOY_ZIP=0
-          STAGE_LIST='stage0 stage1 stage2 stage3 stage-kpanel'
-          EOF
+IMG_NAME='${{ steps.vars.outputs.image_name }}'
+RELEASE='bookworm'
+TARGET_HOSTNAME='kpanel'
+FIRST_USER_NAME='pi'
+FIRST_USER_PASS='kpanel'
+DISABLE_FIRST_BOOT_USER_RENAME=1
+ENABLE_SSH=1
+DEPLOY_ZIP=0
+STAGE_LIST='stage0 stage1 stage2 stage3 stage-kpanel'
+EOF
 
       - name: Verify Docker runtime
         shell: bash
