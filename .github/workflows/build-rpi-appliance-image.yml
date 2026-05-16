@@ -106,16 +106,16 @@ jobs:
         run: |
           set -euo pipefail
           cat >/tmp/pi-gen/config <<'EOF'
-          IMG_NAME='${{ steps.vars.outputs.image_name }}'
-          RELEASE='bookworm'
-          TARGET_HOSTNAME='kpanel'
-          FIRST_USER_NAME='pi'
-          FIRST_USER_PASS='kpanel'
-          DISABLE_FIRST_BOOT_USER_RENAME=1
-          ENABLE_SSH=1
-          DEPLOY_ZIP=0
-          STAGE_LIST='stage0 stage1 stage2 stage3 stage-kpanel'
-          EOF
+IMG_NAME='${{ steps.vars.outputs.image_name }}'
+RELEASE='bookworm'
+TARGET_HOSTNAME='kpanel'
+FIRST_USER_NAME='pi'
+FIRST_USER_PASS='kpanel'
+DISABLE_FIRST_BOOT_USER_RENAME=1
+ENABLE_SSH=1
+DEPLOY_ZIP=0
+STAGE_LIST='stage0 stage1 stage2 stage3 stage-kpanel'
+EOF
 
       - name: Verify Docker runtime
         shell: bash
@@ -155,7 +155,23 @@ jobs:
         run: |
           set -euo pipefail
           cd /tmp/pi-gen
-          sudo ./build-docker.sh
+
+          attempts=3
+          for attempt in $(seq 1 "$attempts"); do
+            echo "pi-gen build attempt ${attempt}/${attempts}"
+            if sudo ./build-docker.sh; then
+              echo "pi-gen build succeeded on attempt ${attempt}"
+              exit 0
+            fi
+
+            if [[ "$attempt" -lt "$attempts" ]]; then
+              echo "pi-gen build failed; cleaning work/deploy and retrying"
+              sudo rm -rf /tmp/pi-gen/work /tmp/pi-gen/deploy
+            fi
+          done
+
+          echo "pi-gen build failed after ${attempts} attempts" >&2
+          exit 1
 
       - name: Smoke test image runtime helpers
         shell: bash
