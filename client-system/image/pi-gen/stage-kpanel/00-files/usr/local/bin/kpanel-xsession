@@ -3,27 +3,43 @@ set -u
 
 LOG_DIR=/tmp/kpanel-client
 mkdir -p "$LOG_DIR"
+XSESSION_LOG="$LOG_DIR/xsession.log"
+
+BOOT_LOG=""
+for boot_dir in /boot/firmware /boot; do
+	if [[ -d "$boot_dir" && -w "$boot_dir" ]]; then
+		mkdir -p "$boot_dir/kpanel-debug"
+		BOOT_LOG="$boot_dir/kpanel-debug/xsession.log"
+		break
+	fi
+done
+
+if [[ -n "$BOOT_LOG" ]]; then
+	exec > >(tee -a "$XSESSION_LOG" "$BOOT_LOG") 2>&1
+else
+	exec >>"$XSESSION_LOG" 2>&1
+fi
 
 {
 	echo "===== $(date -Iseconds) xsession start ====="
 	echo "DISPLAY=${DISPLAY:-}"
 	echo "XDG_SESSION_TYPE=${XDG_SESSION_TYPE:-}"
-} >>"$LOG_DIR/xsession.log"
+}
 
 xset s off || true
 xset -dpms || true
 xset s noblank || true
 
-/usr/local/bin/kpanel-client-launcher.sh >>"$LOG_DIR/xsession.log" 2>&1 &
+/usr/local/bin/kpanel-client-launcher.sh &
 
 if command -v openbox-session >/dev/null 2>&1; then
-	/usr/bin/openbox-session >>"$LOG_DIR/xsession.log" 2>&1 &
+	/usr/bin/openbox-session &
 	openbox_pid=$!
 	wait "$openbox_pid" || true
-	echo "openbox-session exited; holding session open to avoid relogin loop" >>"$LOG_DIR/xsession.log"
+	echo "openbox-session exited; holding session open to avoid relogin loop"
 fi
 
-echo "openbox-session not found; falling back to xterm" >>"$LOG_DIR/xsession.log"
+echo "openbox-session not found; falling back to xterm"
 if command -v xterm >/dev/null 2>&1; then
 	exec xterm -fa Monospace -fs 11 -hold -e sh -lc 'echo "KPanel desktop session fallback"; echo "openbox-session is missing."; echo "Check /tmp/kpanel-client/xsession.log and /tmp/kpanel-client/launcher.log"; exec bash'
 fi

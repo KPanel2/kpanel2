@@ -6,9 +6,25 @@ LOG_DIR=/tmp/kpanel-client
 LOG_FILE="$LOG_DIR/launcher.log"
 
 mkdir -p "$LOG_DIR"
+
+BOOT_LOG=""
+for boot_dir in /boot/firmware /boot; do
+	if [[ -d "$boot_dir" && -w "$boot_dir" ]]; then
+		mkdir -p "$boot_dir/kpanel-debug"
+		BOOT_LOG="$boot_dir/kpanel-debug/launcher.log"
+		break
+	fi
+done
+
+if [[ -n "$BOOT_LOG" ]]; then
+	exec > >(tee -a "$LOG_FILE" "$BOOT_LOG") 2>&1
+else
+	exec >>"$LOG_FILE" 2>&1
+fi
+
 exec 9>"$LOCK_FILE"
 if ! flock -n 9; then
-	echo "Another KPanel launcher instance is already running" >>"$LOG_FILE"
+	echo "Another KPanel launcher instance is already running"
 	exit 0
 fi
 
@@ -44,7 +60,7 @@ fi
 export PYTHONPATH="/opt/kpanel-client${PYTHONPATH:+:$PYTHONPATH}"
 
 if [[ -f /etc/kpanel/debug-shell ]]; then
-	echo "Debug shell flag present; skipping kiosk launcher" >>"$LOG_FILE"
+	echo "Debug shell flag present; skipping kiosk launcher"
 	if command -v xterm >/dev/null 2>&1; then
 		exec xterm -fa Monospace -fs 12 -hold -e sh -lc 'echo "KPanel debug shell mode active."; echo "Remove /etc/kpanel/debug-shell to resume kiosk auto-start."; exec bash'
 	fi
@@ -59,11 +75,11 @@ sleep 5
 	echo "DISPLAY=${DISPLAY:-}"
 	echo "XDG_SESSION_TYPE=${XDG_SESSION_TYPE:-}"
 	echo "API_BASE=${KPANEL_API_BASE_URL_OVERRIDE:-}"
-} >>"$LOG_FILE"
+}
 
 status=0
 set +e
-/opt/kpanel-client/.venv/bin/python -m kpanel_client.main >>"$LOG_FILE" 2>&1
+/opt/kpanel-client/.venv/bin/python -m kpanel_client.main
 status=$?
 set -e
 
