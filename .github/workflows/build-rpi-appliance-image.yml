@@ -157,11 +157,19 @@ jobs:
           cd /tmp/pi-gen
 
           attempts=3
+          fallback_configured=0
           for attempt in $(seq 1 "$attempts"); do
             echo "pi-gen build attempt ${attempt}/${attempts}"
             if sudo ./build-docker.sh; then
               echo "pi-gen build succeeded on attempt ${attempt}"
               exit 0
+            fi
+
+            if [[ "$fallback_configured" -eq 0 ]] && grep -R -q "Couldn't download package" /tmp/pi-gen/work/*/stage0/debootstrap.log 2>/dev/null; then
+              echo "Detected transient package download failure; enabling fallback mirrors"
+              printf "%s\n" "RASPBIAN_MIRROR='http://archive.raspbian.org/raspbian/'" >> /tmp/pi-gen/config
+              printf "%s\n" "DEBIAN_MIRROR='http://deb.debian.org/debian/'" >> /tmp/pi-gen/config
+              fallback_configured=1
             fi
 
             if [[ "$attempt" -lt "$attempts" ]]; then

@@ -24,6 +24,11 @@ autologin-session=kpanel-openbox
 user-session=kpanel-openbox
 EOF
 
+cat > /etc/lightdm/lightdm.conf.d/20-kpanel-greeter.conf <<'HEALGREET'
+[Seat:*]
+greeter-session=lightdm-gtk-greeter
+HEALGREET
+
 ln -sf /lib/systemd/system/graphical.target /etc/systemd/system/default.target
 if [[ -f /lib/systemd/system/lightdm.service ]]; then
   ln -sf /lib/systemd/system/lightdm.service /etc/systemd/system/display-manager.service

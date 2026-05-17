@@ -3,6 +3,7 @@ python3-venv
 python3-tk
 chromium-browser
 lightdm
+lightdm-gtk-greeter
 openbox
 xserver-xorg
 x11-xserver-utils
