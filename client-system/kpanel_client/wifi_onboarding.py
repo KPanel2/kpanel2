@@ -78,38 +78,42 @@ def prompt_and_connect_wifi(timeout_sec: int, skip_known_networks: bool) -> str:
     )
 
     form = tk.Frame(panel, bg=COLORS["surface"])
-    form.pack(fill="x", pady=(12, 0))
+    form.pack(fill="x", pady=(20, 0))
+
+    label_width = 18
+    field_font = ("Inter", 14)
+    label_font = ("Inter", 14, "bold")
 
     ssid_frame = tk.Frame(form, bg=COLORS["surface"])
     ssid_frame.pack(fill="x", pady=8)
     tk.Label(
         ssid_frame,
         text="Wi-Fi network",
-        width=16,
+        width=label_width,
         anchor="w",
         fg=COLORS["text"],
         bg=COLORS["surface"],
-        font=("Inter", 12, "bold"),
+        font=label_font,
     ).pack(side="left")
 
     if ssids:
         option_menu = tk.OptionMenu(ssid_frame, selected_ssid, *ssids)
         option_menu.config(
-            width=36,
+            width=40,
             bg=COLORS["surface_2"],
             fg=COLORS["text"],
             activebackground=COLORS["surface"],
             activeforeground=COLORS["text"],
             highlightthickness=1,
             highlightbackground=COLORS["border"],
-            font=("Inter", 12),
+            font=field_font,
         )
         option_menu["menu"].config(
             bg=COLORS["surface_2"],
             fg=COLORS["text"],
             activebackground=COLORS["primary_2"],
             activeforeground=COLORS["text"],
-            font=("Inter", 12),
+            font=field_font,
         )
         option_menu.pack(side="left", fill="x", expand=True)
     else:
@@ -122,7 +126,7 @@ def prompt_and_connect_wifi(timeout_sec: int, skip_known_networks: bool) -> str:
             relief="flat",
             highlightbackground=COLORS["border"],
             highlightthickness=1,
-            font=("Inter", 12),
+            font=field_font,
         ).pack(side="left", fill="x", expand=True)
 
     pw_frame = tk.Frame(form, bg=COLORS["surface"])
@@ -130,11 +134,11 @@ def prompt_and_connect_wifi(timeout_sec: int, skip_known_networks: bool) -> str:
     tk.Label(
         pw_frame,
         text="Password",
-        width=16,
+        width=label_width,
         anchor="w",
         fg=COLORS["text"],
         bg=COLORS["surface"],
-        font=("Inter", 12, "bold"),
+        font=label_font,
     ).pack(side="left")
     tk.Entry(
         pw_frame,
@@ -146,7 +150,7 @@ def prompt_and_connect_wifi(timeout_sec: int, skip_known_networks: bool) -> str:
         relief="flat",
         highlightbackground=COLORS["border"],
         highlightthickness=1,
-        font=("Inter", 12),
+        font=field_font,
     ).pack(side="left", fill="x", expand=True)
 
     status_label = tk.Label(
@@ -154,9 +158,9 @@ def prompt_and_connect_wifi(timeout_sec: int, skip_known_networks: bool) -> str:
         text="",
         fg=COLORS["danger"],
         bg=COLORS["surface"],
-        font=("Inter", 11, "bold"),
+        font=("Inter", 12, "bold"),
     )
-    status_label.pack(anchor="w", pady=(18, 0))
+    status_label.pack(anchor="center", pady=(20, 0))
 
     def on_connect() -> None:
         status_label.config(text="Connecting...", fg=COLORS["primary"])
@@ -176,7 +180,7 @@ def prompt_and_connect_wifi(timeout_sec: int, skip_known_networks: bool) -> str:
         root.destroy()
 
     btn_frame = tk.Frame(panel, bg=COLORS["surface"])
-    btn_frame.pack(anchor="e", pady=(18, 0))
+    btn_frame.pack(anchor="center", pady=(24, 0))
     secondary_button(btn_frame, "Skip", on_skip).pack(side="right", padx=(12, 0))
     primary_button(btn_frame, "Connect", on_connect).pack(side="right")
 

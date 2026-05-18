@@ -4,8 +4,8 @@ KPANEL_ENV_MODE=prod
 
 # Default API targets for each environment mode.
 KPANEL_API_BASE_URL_PROD=https://kpanel.kumpe.app
-KPANEL_API_BASE_URL_STAGE=https://stage.kpanel.kumpe.app
-KPANEL_API_BASE_URL_DEV=https://dev.kpanel.kumpe.app
+KPANEL_API_BASE_URL_STAGE=https://kpanel.stage.kumpe.app
+KPANEL_API_BASE_URL_DEV=https://kpanel.dev.kumpe.app
 
 # Optional explicit override. If set, this value wins regardless of mode.
 # Example: KPANEL_API_BASE_URL_OVERRIDE=http://192.168.1.50:8000

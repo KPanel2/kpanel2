@@ -48,6 +48,12 @@ class DeviceRegistration(Base):
     target_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    client_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    pending_action: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    pending_action_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_action: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    last_action_status: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    last_action_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 

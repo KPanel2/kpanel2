@@ -8,15 +8,15 @@ Type=simple
 User=pi
 WorkingDirectory=/opt/kpanel-client
 Environment=KPANEL_DEVICE_ID=${HOSTNAME}
-Environment=KPANEL_API_BASE_URL_OVERRIDE=
-Environment=KPANEL_STATE_PATH=/opt/kpanel-client/device-state.json
+Environment=KPANEL_STATE_PATH=/var/lib/kpanel-client/device-state.json
 Environment=KPANEL_WIFI_ENABLED=true
 Environment=KPANEL_WIFI_UI_ENABLED=true
 Environment=KPANEL_WIFI_CONNECT_TIMEOUT_SEC=25
 Environment=KPANEL_HOTSPOT_FALLBACK_ENABLED=true
 Environment=KPANEL_HOTSPOT_SSID=KPanel-Recovery
 Environment=KPANEL_HOTSPOT_PASSWORD=kpanel12345
-ExecStart=/opt/kpanel-client/.venv/bin/python -m kpanel_client.main
+ExecStart=/usr/local/bin/kpanel-client-launcher.sh
+StateDirectory=kpanel-client
 Restart=always
 RestartSec=5
 

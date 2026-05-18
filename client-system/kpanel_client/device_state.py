@@ -8,6 +8,7 @@ import secrets
 class DeviceState:
     registration_code: str
     device_token: str = ""
+    last_boot_id: str = ""
 
 
 def generate_registration_code() -> str:
@@ -25,6 +26,7 @@ def load_or_create_state(state_path: str, registration_code_override: str = "") 
                 {
                     "registration_code": state.registration_code,
                     "device_token": state.device_token,
+                    "last_boot_id": state.last_boot_id,
                 },
                 indent=2,
             ),
@@ -37,16 +39,18 @@ def load_or_create_state(state_path: str, registration_code_override: str = "") 
             data = json.loads(path.read_text(encoding="utf-8"))
             code = str(data.get("registration_code", "")).strip().upper()
             token = str(data.get("device_token", "")).strip()
-            return DeviceState(registration_code=code, device_token=token)
+            boot_id = str(data.get("last_boot_id", "")).strip()
+            return DeviceState(registration_code=code, device_token=token, last_boot_id=boot_id)
         except (json.JSONDecodeError, OSError):
             pass
 
-    state = DeviceState(registration_code="", device_token="")
+    state = DeviceState(registration_code="", device_token="", last_boot_id="")
     path.write_text(
         json.dumps(
             {
                 "registration_code": state.registration_code,
                 "device_token": state.device_token,
+                "last_boot_id": state.last_boot_id,
             },
             indent=2,
         ),
@@ -63,6 +67,7 @@ def persist_state(state_path: str, state: DeviceState) -> None:
             {
                 "registration_code": state.registration_code,
                 "device_token": state.device_token,
+                "last_boot_id": state.last_boot_id,
             },
             indent=2,
         ),

@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+KPANEL_USER="${KPANEL_USER:-pi}"
+LIGHTDM_CONF_DIR=/etc/lightdm/lightdm.conf.d
+LIGHTDM_CONF="$LIGHTDM_CONF_DIR/99-kpanel-autologin.conf"
+
+install -d -m 755 /etc/systemd/system "$LIGHTDM_CONF_DIR"
+
+if id -u "$KPANEL_USER" >/dev/null 2>&1; then
+  for group_name in autologin nopasswdlogin; do
+    if ! getent group "$group_name" >/dev/null 2>&1; then
+      groupadd --system "$group_name"
+    fi
+    usermod -a -G "$group_name" "$KPANEL_USER" || true
+  done
+fi
+
+cat > "$LIGHTDM_CONF" <<EOF
+[Seat:*]
+autologin-user=$KPANEL_USER
+autologin-user-timeout=0
+autologin-session=kpanel-openbox
+user-session=kpanel-openbox
+EOF
+
+cat > /etc/lightdm/lightdm.conf.d/20-kpanel-greeter.conf <<'HEALGREET'
+[Seat:*]
+greeter-session=lightdm-gtk-greeter
+HEALGREET
+
+ln -sf /lib/systemd/system/graphical.target /etc/systemd/system/default.target
+if [[ -f /lib/systemd/system/lightdm.service ]]; then
+  ln -sf /lib/systemd/system/lightdm.service /etc/systemd/system/display-manager.service
+fi
+
+if [[ -f /usr/local/bin/kpanel-client-launcher.sh ]]; then
+  chmod 755 /usr/local/bin/kpanel-client-launcher.sh
+fi
+if [[ -f /usr/local/bin/kpanel-xsession ]]; then
+  chmod 755 /usr/local/bin/kpanel-xsession
+fi
+if [[ -f /usr/local/bin/kpanel-set-mode ]]; then
+  chmod 755 /usr/local/bin/kpanel-set-mode
+fi
+if [[ -f /home/$KPANEL_USER/.config/openbox/autostart ]]; then
+  chmod 755 /home/$KPANEL_USER/.config/openbox/autostart
+  chown "$KPANEL_USER:$KPANEL_USER" /home/$KPANEL_USER/.config/openbox/autostart
+fi
+
+if [[ -f /home/$KPANEL_USER/.profile ]]; then
+  chmod 644 /home/$KPANEL_USER/.profile
+  chown "$KPANEL_USER:$KPANEL_USER" /home/$KPANEL_USER/.profile
+fi
+if [[ -f /home/$KPANEL_USER/.xinitrc ]]; then
+  chmod 755 /home/$KPANEL_USER/.xinitrc
+  chown "$KPANEL_USER:$KPANEL_USER" /home/$KPANEL_USER/.xinitrc
+fi
+
+if [[ -d /home/$KPANEL_USER ]]; then
+  cat > "/home/$KPANEL_USER/.dmrc" <<'EOF'
+[Desktop]
+Session=kpanel-openbox
+EOF
+  chmod 644 "/home/$KPANEL_USER/.dmrc"
+  chown "$KPANEL_USER:$KPANEL_USER" "/home/$KPANEL_USER/.dmrc"
+
+  cat > "/home/$KPANEL_USER/.xsession" <<'EOF'
+#!/bin/sh
+exec /usr/local/bin/kpanel-xsession
+EOF
+  chmod 755 "/home/$KPANEL_USER/.xsession"
+  chown "$KPANEL_USER:$KPANEL_USER" "/home/$KPANEL_USER/.xsession"
+fi
