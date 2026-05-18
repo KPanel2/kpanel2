@@ -5,5 +5,6 @@ chromium-browser
 lightdm
 lightdm-gtk-greeter
 openbox
+xinit
 xserver-xorg
 x11-xserver-utils

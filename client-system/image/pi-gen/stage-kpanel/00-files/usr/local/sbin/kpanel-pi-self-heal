@@ -48,6 +48,15 @@ if [[ -f /home/$KPANEL_USER/.config/openbox/autostart ]]; then
   chown "$KPANEL_USER:$KPANEL_USER" /home/$KPANEL_USER/.config/openbox/autostart
 fi
 
+if [[ -f /home/$KPANEL_USER/.profile ]]; then
+  chmod 644 /home/$KPANEL_USER/.profile
+  chown "$KPANEL_USER:$KPANEL_USER" /home/$KPANEL_USER/.profile
+fi
+if [[ -f /home/$KPANEL_USER/.xinitrc ]]; then
+  chmod 755 /home/$KPANEL_USER/.xinitrc
+  chown "$KPANEL_USER:$KPANEL_USER" /home/$KPANEL_USER/.xinitrc
+fi
+
 if [[ -d /home/$KPANEL_USER ]]; then
   cat > "/home/$KPANEL_USER/.dmrc" <<'EOF'
 [Desktop]
