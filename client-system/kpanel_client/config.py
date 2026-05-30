@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import os
 import socket
+import subprocess
 from pathlib import Path
 
 
@@ -13,6 +14,25 @@ def _api_base_url() -> str:
     if override:
         return override
     return os.getenv("KPANEL_API_BASE_URL", "https://kpanel.kumpe.app")
+
+
+def _client_version() -> str:
+    override = os.getenv("KPANEL_CLIENT_VERSION", "").strip()
+    if override:
+        return override
+    try:
+        result = subprocess.run(
+            ["dpkg-query", "--showformat=${Version}", "--show", "kpanel-client"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        version = result.stdout.strip()
+        if version:
+            return version
+    except Exception:
+        pass
+    return "unknown"
 
 
 def _default_device_id() -> str:
@@ -34,7 +54,7 @@ def _default_device_id() -> str:
 @dataclass
 class ClientConfig:
     api_base_url: str = _api_base_url()
-    client_version: str = os.getenv("KPANEL_CLIENT_VERSION", "unknown")
+    client_version: str = _client_version()
     device_id: str = _default_device_id()
     device_token: str = os.getenv("KPANEL_DEVICE_TOKEN", "")
     registration_code: str = os.getenv("KPANEL_REG_CODE", "")
