@@ -86,6 +86,11 @@ deploy_rules:
         - published
       exclude_prerelease: true
 
+workflow_checks:
+  require:
+    - "Sync Secrets to Deployment Bot"  # Ensure secrets are synced before deployment
+    - "Publish Containers to GHCR"  # Ensure new container images are published before deployment
+
 # OPTION 2: Deploy on tags matching semantic versioning
 # deploy_rules:
 #   - environment: prod

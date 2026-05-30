@@ -44,6 +44,10 @@ def hide_registration_prompt() -> None:
     _stop_registration_overlay()
 
 
+def is_kiosk_running() -> bool:
+    return bool(_kiosk_proc and _kiosk_proc.poll() is None)
+
+
 def stop_kiosk() -> None:
     global _kiosk_proc, _kiosk_url
     if _kiosk_proc and _kiosk_proc.poll() is None:
@@ -158,7 +162,7 @@ def show_registration_prompt_legacy_message(
         print(message)
 
 
-def show_api_unreachable_prompt(api_base_url: str) -> None:
+def show_api_unreachable_prompt(api_base_url: str, auto_close_ms: int = 30_000) -> None:
     message = (
         "Internet is available, but the KPanel registration API is unreachable.\n\n"
         f"API base: {api_base_url}\n\n"
@@ -171,6 +175,7 @@ def show_api_unreachable_prompt(api_base_url: str) -> None:
             kicker="Connectivity Warning",
             heading="Cannot reach registration service.",
             body=message,
+            auto_close_ms=auto_close_ms,
         )
     except Exception:
         print(message)

@@ -76,6 +76,12 @@ deploy_rules:
     labels:
       - deploy-dev
 
+
+workflow_checks:
+  require:
+    - "Sync Secrets to Deployment Bot"  # Ensure secrets are synced before deployment
+    - "Publish Containers to GHCR"  # Ensure new container images are published before deployment
+
 # Optional: Add branch filtering to label-based deployment
 # deploy_rules:
 #   - environment: dev
