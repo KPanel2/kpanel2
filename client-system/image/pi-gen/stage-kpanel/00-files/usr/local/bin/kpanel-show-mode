@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CONF_FILE=/etc/default/kpanel-client
+MODE_PIN_FILE=/etc/kpanel/mode-set-by-user
+MODE_PIN_VERSION_FILE=/etc/kpanel/mode-set-by-user.version
+
+if [[ -f "$CONF_FILE" ]]; then
+  # shellcheck disable=SC1090
+  source "$CONF_FILE"
+fi
+
+mode="${KPANEL_ENV_MODE:-prod}"
+mode_source="config"
+
+if [[ -f "$MODE_PIN_FILE" && -f "$MODE_PIN_VERSION_FILE" && "$(tr -d '[:space:]' < "$MODE_PIN_VERSION_FILE" 2>/dev/null || true)" == "2" ]]; then
+  pinned_mode="$(tr -d '[:space:]' < "$MODE_PIN_FILE" 2>/dev/null || true)"
+  case "$pinned_mode" in
+    prod|stage|dev)
+      mode="$pinned_mode"
+      mode_source="pinned"
+      ;;
+  esac
+fi
+prod_url="${KPANEL_API_BASE_URL_PROD:-https://kpanel.kumpe.app}"
+stage_url="${KPANEL_API_BASE_URL_STAGE:-https://kpanel.stage.kumpe.app}"
+dev_url="${KPANEL_API_BASE_URL_DEV:-https://kpanel.dev.kumpe.app}"
+override_url="${KPANEL_API_BASE_URL_OVERRIDE:-}"
+
+case "$mode" in
+  prod) mode_url="$prod_url" ;;
+  stage) mode_url="$stage_url" ;;
+  dev) mode_url="$dev_url" ;;
+  *)
+    mode="prod"
+    mode_url="$prod_url"
+    ;;
+esac
+
+if [[ -n "$override_url" ]]; then
+  effective_url="$override_url"
+  source_label="override"
+else
+  effective_url="$mode_url"
+  source_label="mode"
+fi
+
+echo "KPanel mode: $mode ($mode_source)"
+echo "Effective API base: $effective_url ($source_label)"
+echo
+
+echo "Configured targets:"
+echo "  prod : $prod_url"
+echo "  stage: $stage_url"
+echo "  dev  : $dev_url"
+
+if [[ -f /tmp/kpanel-client/launcher.log ]]; then
+  last_api_line="$(grep -E 'API_BASE=' /tmp/kpanel-client/launcher.log | tail -n 1 || true)"
+  if [[ -n "$last_api_line" ]]; then
+    echo
+    echo "Last launcher log API line:"
+    echo "  $last_api_line"
+  fi
+fi

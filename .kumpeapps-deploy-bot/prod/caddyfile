@@ -1,0 +1,8 @@
+kpanel.kumpe.app {
+  import ssl_defaults
+
+  @backend path /api* /docs* /healthz
+  reverse_proxy @backend {{nebula.ip}}:8000
+
+  reverse_proxy {{nebula.ip}}:8080
+}

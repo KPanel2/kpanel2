@@ -1,0 +1,130 @@
+name: Build Debian VM Appliance Image
+
+on:
+  push:
+  workflow_dispatch:
+    inputs:
+      image_name:
+        description: Image base name
+        required: false
+        default: kpanel-vm-appliance
+      package_version:
+        description: kpanel-client package version (without v prefix)
+        required: false
+        default: 0.1.0
+  release:
+    types:
+      - published
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-vm-image:
+    runs-on: ubuntu-latest
+    env:
+      RCLONE_CONFIG_BLOB: ${{ secrets.RCLONE_CONFIG }}
+      RCLONE_REMOTE_PATH: ${{ secrets.RCLONE_REMOTE_PATH }}
+      HAS_RCLONE_CONFIG: ${{ secrets.RCLONE_CONFIG != '' }}
+      HAS_RCLONE_REMOTE_PATH: ${{ secrets.RCLONE_REMOTE_PATH != '' }}
+
+    steps:
+      - name: Check out source repository
+        uses: actions/checkout@v4
+
+      - name: Resolve package version
+        id: vars
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          IMAGE_NAME="kpanel-vm-appliance"
+          VERSION="0.1.0~git${GITHUB_SHA::7}"
+
+          if [[ "${GITHUB_EVENT_NAME}" == "release" ]]; then
+            VERSION="${{ github.event.release.tag_name }}"
+            VERSION="${VERSION#v}"
+          elif [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.package_version }}"
+            IMAGE_NAME="${{ github.event.inputs.image_name || 'kpanel-vm-appliance' }}"
+          fi
+
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "image_name=${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Build Debian VM appliance image
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x client-system/scripts/build_vm_image.sh client-system/image/debian-vm/provision/configure-image.sh
+          client-system/scripts/build_vm_image.sh full "${{ steps.vars.outputs.version }}" "${{ steps.vars.outputs.image_name }}"
+
+      - name: Report mirror upload configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "RCLONE_CONFIG present: $HAS_RCLONE_CONFIG"
+          echo "RCLONE_REMOTE_PATH present: $HAS_RCLONE_REMOTE_PATH"
+          if [[ "$HAS_RCLONE_CONFIG" != "true" || "$HAS_RCLONE_REMOTE_PATH" != "true" ]]; then
+            echo "rclone mirror upload will be skipped because required secrets are missing"
+          else
+            echo "rclone mirror upload is enabled"
+          fi
+
+      - name: Upload VM artifacts via rclone
+        if: ${{ env.HAS_RCLONE_CONFIG == 'true' && env.HAS_RCLONE_REMOTE_PATH == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BUILD_DIR=client-system/build/vm-image
+          mapfile -t FILES < <(find "$BUILD_DIR" -maxdepth 1 -type f \( -name '*.qcow2' -o -name '*.qcow2.sha256' -o -name '*.raw.xz' -o -name '*.raw.xz.sha256' \) | sort)
+
+          if [[ "${#FILES[@]}" -eq 0 ]]; then
+            echo "No VM artifacts found for rclone upload" >&2
+            exit 1
+          fi
+
+          sudo apt-get update
+          sudo apt-get install -y rclone
+
+          mkdir -p "$HOME/.config/rclone"
+          printf '%s\n' "$RCLONE_CONFIG_BLOB" > "$HOME/.config/rclone/rclone.conf"
+
+          echo "Uploading files to $RCLONE_REMOTE_PATH"
+          printf ' - %s\n' "${FILES[@]}"
+
+          rclone mkdir "$RCLONE_REMOTE_PATH"
+          rclone copy "$BUILD_DIR" "$RCLONE_REMOTE_PATH" \
+            --include "*.qcow2" \
+            --include "*.qcow2.sha256" \
+            --include "*.raw.xz" \
+            --include "*.raw.xz.sha256" \
+            --progress \
+            --stats-one-line
+
+          echo "rclone upload completed to $RCLONE_REMOTE_PATH"
+
+      - name: Upload VM appliance image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.vars.outputs.image_name }}-${{ steps.vars.outputs.version }}
+          path: |
+            client-system/build/vm-image/*.qcow2
+            client-system/build/vm-image/*.qcow2.sha256
+            client-system/build/vm-image/*.raw.xz
+            client-system/build/vm-image/*.raw.xz.sha256
+
+      - name: Attach VM image artifacts to GitHub release
+        if: ${{ github.event_name == 'release' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            client-system/build/vm-image/*.qcow2
+            client-system/build/vm-image/*.qcow2.sha256
+            client-system/build/vm-image/*.raw.xz
+            client-system/build/vm-image/*.raw.xz.sha256

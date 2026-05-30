@@ -24,6 +24,14 @@ cp -r "$ROOT_DIR/kpanel_client" "$PKG_ROOT/usr/share/$PKG_NAME/"
 cp "$ROOT_DIR/requirements.txt" "$PKG_ROOT/usr/share/$PKG_NAME/"
 mkdir -p "$PKG_ROOT/usr/share/$PKG_NAME/systemd"
 cp "$ROOT_DIR/systemd/kpanel-client.service" "$PKG_ROOT/usr/share/$PKG_NAME/systemd/"
+mkdir -p "$PKG_ROOT/usr/share/$PKG_NAME/bin"
+cp "$ROOT_DIR/image/pi-gen/stage-kpanel/00-files/usr/local/bin/kpanel-client-launcher.sh" \
+	"$PKG_ROOT/usr/share/$PKG_NAME/bin/"
+cp "$ROOT_DIR/image/pi-gen/stage-kpanel/00-files/usr/local/bin/kpanel-set-mode" \
+	"$PKG_ROOT/usr/share/$PKG_NAME/bin/"
+mkdir -p "$PKG_ROOT/usr/share/$PKG_NAME/defaults"
+cp "$ROOT_DIR/image/pi-gen/stage-kpanel/00-files/etc/default/kpanel-client" \
+	"$PKG_ROOT/usr/share/$PKG_NAME/defaults/"
 
 mkdir -p "$BUILD_DIR"
 dpkg-deb --build "$PKG_ROOT" "$BUILD_DIR/${PKG_NAME}_${VERSION}_all.deb"

@@ -114,6 +114,32 @@ Safety requirements:
 - Keep `KPANEL_DEV_AUTH_ENABLED=false` in shared, staging, and production environments.
 - Enable it only for local development or controlled admin-only testing.
 
+## OAuth / OIDC callback URLs
+
+Each provider must be configured to allow the following redirect URI:
+
+```
+https://<your-domain>/api/v1/auth/callback/{provider_name}
+```
+
+Concrete URLs per provider:
+
+| Provider | Callback URL |
+|---|---|
+| Google | `https://<your-domain>/api/v1/auth/callback/google` |
+| GitHub | `https://<your-domain>/api/v1/auth/callback/github` |
+| Facebook | `https://<your-domain>/api/v1/auth/callback/facebook` |
+| Apple | `https://<your-domain>/api/v1/auth/callback/apple` |
+| Microsoft Login | `https://<your-domain>/api/v1/auth/callback/microsoft_login` |
+| Microsoft Entra | `https://<your-domain>/api/v1/auth/callback/microsoft_entra` |
+| Custom OIDC | `https://<your-domain>/api/v1/auth/callback/custom_oidc` |
+
+For local development the base is `http://localhost:8000`, e.g.:
+
+```
+http://localhost:8000/api/v1/auth/callback/google
+```
+
 Account behavior:
 
 - If a user signs in and no KPanel account exists for that email, the portal prompts account creation.

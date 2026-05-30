@@ -1,0 +1,10 @@
+[Unit]
+Description=KPanel Client Updater
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/kpanel-client
+ExecStart=/opt/kpanel-client/.venv/bin/python -m kpanel_client.updater

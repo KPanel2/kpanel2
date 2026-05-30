@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=KPanel Openbox
+Comment=KPanel kiosk session using Openbox
+Exec=/usr/local/bin/kpanel-xsession
+Type=Application
+DesktopNames=KPanel-Openbox
+

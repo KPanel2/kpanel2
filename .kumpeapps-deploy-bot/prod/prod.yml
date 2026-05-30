@@ -1,9 +1,9 @@
-# Staging Environment Config Example
-# File location: .kumpeapps-deploy-bot/stage/myapp.yml
+# Production Environment Config Example
+# File location: .kumpeapps-deploy-bot/prod/myapp.yml
 
 deployment_type: docker
-assigned_username: your-github-username
-vm_hostname: stage-vm-myapp
+assigned_username: justinkumpe
+vm_hostname: kpanel
 
 # Optional: VM user management
 # Users will be created on the VM and added to bot-admin group
@@ -22,7 +22,7 @@ authorized_admins:
 
 # Domains for reverse proxy
 domains:
-  - example.stage.kumpe.app
+  - kpanel.kumpe.app
 
 # Docker Compose - reference file in same directory
 # Note: Managed Nebula VPN client is automatically injected as the first service
@@ -34,17 +34,18 @@ docker_compose: docker-compose.yml
 #   version: '3.8'
 #   services:
 #     web:
-#       image: myapp:stage
+#       image: myapp:latest
 #       ports:
 #         - "8080:8080"
 #       environment:
-#         NODE_ENV: staging
-#         LOG_LEVEL: info
+#         NODE_ENV: production
+#         LOG_LEVEL: warn
+#       restart: unless-stopped
 
 # Caddy configuration
 # Place a file named 'caddyfile' in the same directory as this config file
 # The caddyfile will be deployed as: {owner}-{repo}-{env}.caddy
-# Example: 'kumpeapps-myapp-stage.caddy'
+# Example: 'kumpeapps-myapp-prod.caddy'
 #
 # All domains in the caddyfile must be:
 #   1. Declared in the 'domains' list above
@@ -58,28 +59,47 @@ docker_compose: docker-compose.yml
 #
 # Available placeholders:
 #   {{vm.ip}} - VM IP address
-#   {{nebula.ip}} - Nebula VPN IP (from STAGE_NEBULA_IP secret)
+#   {{nebula.ip}} - Nebula VPN IP (from PROD_NEBULA_IP secret)
 
 # Environment variable mappings
 # Map container env vars to GitHub repository secrets
 env_mappings:
-  NEBULA_CLIENT_TOKEN: STAGE_NEBULA_CLIENT_TOKEN  # Required for automatic VPN client injection
+  NEBULA_CLIENT_TOKEN: PROD_NEBULA_CLIENT_TOKEN  # Required for automatic VPN client injection
+  KPANEL_SESSION_SECRET: PROD_KPANEL_SESSION_SECRET
+  KPANEL_ADMIN_API_KEY: KPANEL_ADMIN_API_KEY
+  KPANEL_DB_NAME: KPANEL_DB_NAME
+  KPANEL_DB_PASSWORD: KPANEL_DB_PASSWORD
+  KPANEL_DB_USER: KPANEL_DB_USER
+  KPANEL_DEVICE_TOKEN_SECRET: KPANEL_DEVICE_TOKEN_SECRET
+  KPANEL_OIDC_GITHUB_CLIENT_ID: PROD_KPANEL_OIDC_GITHUB_CLIENT_ID
+  KPANEL_OIDC_GITHUB_CLIENT_SECRET: PROD_KPANEL_OIDC_GITHUB_CLIENT_SECRET
 
-# Deployment rules for staging environment
+# Deployment rules for production environment
 #
-# Deploys automatically when code is pushed to main branch
-# No label required - every push to main triggers staging deployment
+# OPTION 1: Deploy on GitHub releases (not pre-releases)
+# When you create a release, deployment is triggered automatically
+# Pre-releases are ignored for production safety
 deploy_rules:
-  - environment: stage
-    branches:
-      include:
-        - main
+  - environment: prod
+    release:
+      types:
+        - published
+      exclude_prerelease: true
 
-# Alternative: Require manual approval via label
+# OPTION 2: Deploy on tags matching semantic versioning
 # deploy_rules:
-#   - environment: stage
+#   - environment: prod
+#     branches:
+#       include:
+#         - v*.*.*
+#         - release-*
+
+# OPTION 3: Deploy main with manual approval label
+# deploy_rules:
+#   - environment: prod
 #     labels:
-#       - deploy-stage
+#       - deploy-prod
+#       - emergency-hotfix
 #     branches:
 #       include:
 #         - main

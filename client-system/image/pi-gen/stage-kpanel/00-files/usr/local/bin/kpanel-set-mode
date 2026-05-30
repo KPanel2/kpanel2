@@ -16,12 +16,26 @@ case "$MODE" in
 esac
 
 CONF=/etc/default/kpanel-client
+MODE_PIN_DIR=/etc/kpanel
+MODE_PIN_FILE=$MODE_PIN_DIR/mode-set-by-user
+MODE_PIN_VERSION_FILE=$MODE_PIN_DIR/mode-set-by-user.version
 if [[ ! -f "$CONF" ]]; then
   echo "Missing $CONF"
   exit 1
 fi
 
+install -d -m 755 "$MODE_PIN_DIR"
+
 sed -i "s/^KPANEL_ENV_MODE=.*/KPANEL_ENV_MODE=${MODE}/" "$CONF"
+if grep -q '^KPANEL_API_BASE_URL_OVERRIDE=' "$CONF"; then
+  sed -i 's/^KPANEL_API_BASE_URL_OVERRIDE=.*/KPANEL_API_BASE_URL_OVERRIDE=/' "$CONF"
+else
+  echo 'KPANEL_API_BASE_URL_OVERRIDE=' >> "$CONF"
+fi
+
+echo "$MODE" > "$MODE_PIN_FILE"
+echo "2" > "$MODE_PIN_VERSION_FILE"
 
 echo "Set KPANEL_ENV_MODE=${MODE} in $CONF"
+echo "Cleared KPANEL_API_BASE_URL_OVERRIDE to follow mode target."
 echo "Reboot or restart graphical session to relaunch kiosk with new target."

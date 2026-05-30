@@ -1,0 +1,14 @@
+/client-system/build/
+/client-system/build/vm-image/
+/client-system/image/pi-gen/stage-kpanel/00-files/usr/local/src/
+*.img
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+*.log
+*.bak
+*.tmp
+.DS_Stored

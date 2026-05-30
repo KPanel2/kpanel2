@@ -1,0 +1,7 @@
+# Copy this file to /boot/firmware/kpanel-wifi.conf and edit it to connect Wi-Fi.
+# If your Pi boots from /boot instead of /boot/firmware, place the same file at /boot/kpanel-wifi.conf.
+
+SSID=YourWifiName
+PASSWORD=YourWifiPassword
+# Optional, defaults to 25 seconds.
+TIMEOUT_SEC=25
