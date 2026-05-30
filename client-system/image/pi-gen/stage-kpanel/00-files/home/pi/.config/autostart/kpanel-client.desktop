@@ -1,8 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=KPanel Client
-Comment=Start KPanel kiosk client at login
-Exec=/usr/local/bin/kpanel-client-launcher.sh
-X-GNOME-Autostart-enabled=true
-NoDisplay=false
-Terminal=false

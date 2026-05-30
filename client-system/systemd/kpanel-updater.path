@@ -1,0 +1,8 @@
+[Unit]
+Description=Trigger KPanel updater when update-now request is queued
+
+[Path]
+PathExists=/tmp/kpanel-update-now.request
+
+[Install]
+WantedBy=multi-user.target

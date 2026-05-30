@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<openbox_config xmlns="http://openbox.org/3.4/rc">
+  <keyboard>
+    <!-- Secret escape: open a terminal overlay (kiosk keeps running) -->
+    <keybind key="C-A-t">
+      <action name="Execute">
+        <command><![CDATA[bash -lc 'if command -v xterm >/dev/null 2>&1; then exec xterm -fa Monospace -fs 12 -bg "#07111D" -fg "#F4FBFF" -title "KPanel Shell"; fi; if command -v x-terminal-emulator >/dev/null 2>&1; then exec x-terminal-emulator; fi; if command -v lxterminal >/dev/null 2>&1; then exec lxterminal -t "KPanel Shell"; fi; openbox --exit']]></command>
+      </action>
+    </keybind>
+    <!-- Secret escape: kill kpanel client and open terminal -->
+    <keybind key="C-A-x">
+      <action name="Execute">
+        <command><![CDATA[bash -lc 'pkill -f kpanel_client || true; pkill -f kpanel-client || true; if command -v xterm >/dev/null 2>&1; then exec xterm -fa Monospace -fs 12 -bg "#07111D" -fg "#F4FBFF" -title "KPanel Shell"; fi; if command -v x-terminal-emulator >/dev/null 2>&1; then exec x-terminal-emulator; fi; if command -v lxterminal >/dev/null 2>&1; then exec lxterminal -t "KPanel Shell"; fi; openbox --exit']]></command>
+      </action>
+    </keybind>
+  </keyboard>
+</openbox_config>

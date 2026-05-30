@@ -1,0 +1,237 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+KPANEL_USER="${KPANEL_USER:-pi}"
+KPANEL_WIFI_COUNTRY="${KPANEL_WIFI_COUNTRY:-US}"
+KPANEL_CONF_FILE=/etc/default/kpanel-client
+KPANEL_MODE_PIN_DIR=/etc/kpanel
+KPANEL_MODE_PIN_FILE=$KPANEL_MODE_PIN_DIR/mode-set-by-user
+LIGHTDM_CONF_DIR=/etc/lightdm/lightdm.conf.d
+LIGHTDM_CONF="$LIGHTDM_CONF_DIR/99-kpanel-autologin.conf"
+GETTY_OVERRIDE_DIR=/etc/systemd/system/getty@tty1.service.d
+
+install -d -m 755 /etc/systemd/system "$LIGHTDM_CONF_DIR" "$GETTY_OVERRIDE_DIR" "$KPANEL_MODE_PIN_DIR"
+
+if id -u "$KPANEL_USER" >/dev/null 2>&1; then
+  for group_name in autologin nopasswdlogin; do
+    if ! getent group "$group_name" >/dev/null 2>&1; then
+      groupadd --system "$group_name"
+    fi
+    usermod -a -G "$group_name" "$KPANEL_USER" || true
+  done
+fi
+
+cat > "$LIGHTDM_CONF" <<EOF
+[Seat:*]
+autologin-user=$KPANEL_USER
+autologin-user-timeout=0
+autologin-session=kpanel-openbox
+user-session=kpanel-openbox
+EOF
+
+if command -v systemctl >/dev/null 2>&1; then
+  systemctl disable lightdm >/dev/null 2>&1 || true
+  systemctl stop lightdm >/dev/null 2>&1 || true
+  systemctl enable getty@tty1.service >/dev/null 2>&1 || true
+fi
+
+if command -v rfkill >/dev/null 2>&1; then
+  rfkill unblock wifi >/dev/null 2>&1 || true
+  rfkill unblock all >/dev/null 2>&1 || true
+fi
+
+if command -v raspi-config >/dev/null 2>&1; then
+  raspi-config nonint do_wifi_country "$KPANEL_WIFI_COUNTRY" >/dev/null 2>&1 || true
+fi
+
+ln -sf /lib/systemd/system/multi-user.target /etc/systemd/system/default.target
+rm -f /etc/systemd/system/display-manager.service
+
+if [[ ! -f "$KPANEL_CONF_FILE" ]]; then
+  cat > "$KPANEL_CONF_FILE" <<'EOF'
+# KPanel appliance runtime mode selection
+# Valid values: prod | stage | dev
+KPANEL_ENV_MODE=prod
+
+# Default API targets for each environment mode.
+KPANEL_API_BASE_URL_PROD=https://kpanel.kumpe.app
+KPANEL_API_BASE_URL_STAGE=https://kpanel.stage.kumpe.app
+KPANEL_API_BASE_URL_DEV=https://kpanel.dev.kumpe.app
+
+# Optional explicit override. If set, this value wins regardless of mode.
+# Example: KPANEL_API_BASE_URL_OVERRIDE=http://192.168.1.50:8000
+KPANEL_API_BASE_URL_OVERRIDE=
+EOF
+fi
+
+if [[ -f "$KPANEL_CONF_FILE" ]]; then
+  if ! grep -q '^KPANEL_ENV_MODE=' "$KPANEL_CONF_FILE"; then
+    echo 'KPANEL_ENV_MODE=prod' >> "$KPANEL_CONF_FILE"
+  fi
+
+  current_mode="$(grep -E '^KPANEL_ENV_MODE=' "$KPANEL_CONF_FILE" | tail -n 1 | cut -d= -f2 | tr -d '[:space:]')"
+  case "$current_mode" in
+    prod|stage|dev)
+      ;;
+    *)
+      if grep -q '^KPANEL_ENV_MODE=' "$KPANEL_CONF_FILE"; then
+        sed -i 's/^KPANEL_ENV_MODE=.*/KPANEL_ENV_MODE=prod/' "$KPANEL_CONF_FILE"
+      else
+        echo 'KPANEL_ENV_MODE=prod' >> "$KPANEL_CONF_FILE"
+      fi
+      ;;
+  esac
+
+  # Default behavior is always prod unless explicitly set by kpanel-set-mode.
+  if [[ ! -f "$KPANEL_MODE_PIN_FILE" ]]; then
+    if grep -q '^KPANEL_ENV_MODE=' "$KPANEL_CONF_FILE"; then
+      sed -i 's/^KPANEL_ENV_MODE=.*/KPANEL_ENV_MODE=prod/' "$KPANEL_CONF_FILE"
+    else
+      echo 'KPANEL_ENV_MODE=prod' >> "$KPANEL_CONF_FILE"
+    fi
+
+    if grep -q '^KPANEL_API_BASE_URL_OVERRIDE=' "$KPANEL_CONF_FILE"; then
+      sed -i 's/^KPANEL_API_BASE_URL_OVERRIDE=.*/KPANEL_API_BASE_URL_OVERRIDE=/' "$KPANEL_CONF_FILE"
+    else
+      echo 'KPANEL_API_BASE_URL_OVERRIDE=' >> "$KPANEL_CONF_FILE"
+    fi
+  fi
+fi
+
+cat > "$GETTY_OVERRIDE_DIR/override.conf" <<EOF
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin $KPANEL_USER --noclear %I \$TERM
+EOF
+
+if [[ -f /usr/local/bin/kpanel-client-launcher.sh ]]; then
+  chmod 755 /usr/local/bin/kpanel-client-launcher.sh
+fi
+if [[ -f /usr/local/bin/kpanel-xsession ]]; then
+  chmod 755 /usr/local/bin/kpanel-xsession
+fi
+if [[ -f /usr/local/bin/kpanel-set-mode ]]; then
+  chmod 755 /usr/local/bin/kpanel-set-mode
+fi
+if [[ -f /usr/local/bin/kpanel-prod ]]; then
+  chmod 755 /usr/local/bin/kpanel-prod
+fi
+if [[ -f /usr/local/bin/kpanel-stage ]]; then
+  chmod 755 /usr/local/bin/kpanel-stage
+fi
+if [[ -f /usr/local/bin/kpanel-dev ]]; then
+  chmod 755 /usr/local/bin/kpanel-dev
+fi
+if [[ -f /usr/local/bin/kpanel-show-mode ]]; then
+  chmod 755 /usr/local/bin/kpanel-show-mode
+fi
+cat > /etc/systemd/system/kpanel-client.service <<'EOF'
+[Unit]
+Description=KPanel Client Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/opt/kpanel-client
+Environment=KPANEL_DEVICE_ID=${HOSTNAME}
+Environment=KPANEL_STATE_PATH=/var/lib/kpanel-client/device-state.json
+ExecStart=/usr/local/bin/kpanel-client-launcher.sh
+StateDirectory=kpanel-client
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+chmod 644 /etc/systemd/system/kpanel-client.service
+cat > /etc/profile.d/kpanel-startx.sh <<'EOF'
+if [ "${USER:-}" = "pi" ] && [ -z "${SSH_CONNECTION:-}" ] && [ -z "${DISPLAY:-}" ]; then
+  if [ -z "${KPANEL_STARTX_LAUNCHED:-}" ]; then
+    export KPANEL_STARTX_LAUNCHED=1
+    XAUTH_DIR=/tmp/kpanel-client
+    mkdir -p "$XAUTH_DIR"
+    export XAUTHORITY="$XAUTH_DIR/.Xauthority"
+    rm -f "${XAUTHORITY}-c" "${XAUTHORITY}-l"
+    touch "$XAUTHORITY"
+    chmod 600 "$XAUTHORITY" 2>/dev/null || true
+    xauth -q list >/dev/null 2>&1 || true
+
+    while true; do
+      startx >>/tmp/kpanel-client/startx.log 2>&1 && exit 0
+      sleep 2
+    done
+  fi
+fi
+EOF
+chmod 644 /etc/profile.d/kpanel-startx.sh
+if [[ -f /home/$KPANEL_USER/.config/openbox/autostart ]]; then
+  chmod 755 /home/$KPANEL_USER/.config/openbox/autostart
+  chown "$KPANEL_USER:$KPANEL_USER" /home/$KPANEL_USER/.config/openbox/autostart
+fi
+
+install -d -m 755 "/home/$KPANEL_USER/.config/openbox"
+chown "$KPANEL_USER:$KPANEL_USER" "/home/$KPANEL_USER/.config/openbox"
+cat > "/home/$KPANEL_USER/.config/openbox/rc.xml" <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<openbox_config xmlns="http://openbox.org/3.4/rc">
+  <keyboard>
+    <!-- Secret escape: open a terminal overlay (kiosk keeps running) -->
+    <keybind key="C-A-t">
+      <action name="Execute">
+        <command><![CDATA[bash -lc 'if command -v xterm >/dev/null 2>&1; then exec xterm -fa Monospace -fs 12 -bg "#07111D" -fg "#F4FBFF" -title "KPanel Shell"; fi; if command -v x-terminal-emulator >/dev/null 2>&1; then exec x-terminal-emulator; fi; if command -v lxterminal >/dev/null 2>&1; then exec lxterminal -t "KPanel Shell"; fi; openbox --exit']]></command>
+      </action>
+    </keybind>
+    <!-- Secret escape: kill kpanel client and open terminal -->
+    <keybind key="C-A-x">
+      <action name="Execute">
+        <command><![CDATA[bash -lc 'pkill -f kpanel_client || true; pkill -f kpanel-client || true; if command -v xterm >/dev/null 2>&1; then exec xterm -fa Monospace -fs 12 -bg "#07111D" -fg "#F4FBFF" -title "KPanel Shell"; fi; if command -v x-terminal-emulator >/dev/null 2>&1; then exec x-terminal-emulator; fi; if command -v lxterminal >/dev/null 2>&1; then exec lxterminal -t "KPanel Shell"; fi; openbox --exit']]></command>
+      </action>
+    </keybind>
+  </keyboard>
+</openbox_config>
+EOF
+chmod 644 "/home/$KPANEL_USER/.config/openbox/rc.xml"
+chown "$KPANEL_USER:$KPANEL_USER" "/home/$KPANEL_USER/.config/openbox/rc.xml"
+
+if [[ -d /home/$KPANEL_USER ]]; then
+  install -d -m 755 "/home/$KPANEL_USER/.local/share/xorg"
+  chown -R "$KPANEL_USER:$KPANEL_USER" "/home/$KPANEL_USER/.local"
+
+  cat > "/home/$KPANEL_USER/.profile" <<'EOF'
+if [ -z "$SSH_CONNECTION" ] && [ -z "$DISPLAY" ] && [ "$(tty)" = "/dev/tty1" ]; then
+  XAUTH_DIR=/tmp/kpanel-client
+  mkdir -p "$XAUTH_DIR"
+  export XAUTHORITY="$XAUTH_DIR/.Xauthority"
+  rm -f "${XAUTHORITY}-c" "${XAUTHORITY}-l"
+  touch "$XAUTHORITY"
+  chmod 600 "$XAUTHORITY" || true
+  xauth -q list >/dev/null 2>&1 || true
+  exec startx
+fi
+EOF
+  chmod 644 "/home/$KPANEL_USER/.profile"
+  chown "$KPANEL_USER:$KPANEL_USER" "/home/$KPANEL_USER/.profile"
+
+  cat > "/home/$KPANEL_USER/.xinitrc" <<'EOF'
+#!/bin/sh
+exec /usr/local/bin/kpanel-xsession
+EOF
+  chmod 755 "/home/$KPANEL_USER/.xinitrc"
+  chown "$KPANEL_USER:$KPANEL_USER" "/home/$KPANEL_USER/.xinitrc"
+
+  cat > "/home/$KPANEL_USER/.dmrc" <<'EOF'
+[Desktop]
+Session=kpanel-openbox
+EOF
+  chmod 644 "/home/$KPANEL_USER/.dmrc"
+  chown "$KPANEL_USER:$KPANEL_USER" "/home/$KPANEL_USER/.dmrc"
+
+  cat > "/home/$KPANEL_USER/.xsession" <<'EOF'
+#!/bin/sh
+exec /usr/local/bin/kpanel-xsession
+EOF
+  chmod 755 "/home/$KPANEL_USER/.xsession"
+  chown "$KPANEL_USER:$KPANEL_USER" "/home/$KPANEL_USER/.xsession"
+fi
