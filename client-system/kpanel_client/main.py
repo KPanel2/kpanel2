@@ -9,6 +9,7 @@ from kpanel_client.hotspot import start_hotspot, stop_hotspot
 from kpanel_client.network import has_internet
 from kpanel_client.ui import (
     hide_registration_prompt,
+    is_kiosk_running,
     show_api_unreachable_prompt,
     launch_kiosk,
     show_hotspot_prompt,
@@ -83,6 +84,9 @@ def run() -> None:
             hotspot_started = False
 
         if not api.is_reachable():
+            if is_kiosk_running():
+                time.sleep(cfg.poll_interval_sec)
+                continue
             hide_registration_prompt()
             stop_kiosk()
             show_api_unreachable_prompt(cfg.api_base_url)
@@ -95,6 +99,9 @@ def run() -> None:
 
         bootstrap_result = api.bootstrap_device(cfg.device_id, state.registration_code)
         if not bootstrap_result.ok:
+            if is_kiosk_running():
+                time.sleep(cfg.poll_interval_sec)
+                continue
             hide_registration_prompt()
             stop_kiosk()
             show_api_unreachable_prompt(cfg.api_base_url)
@@ -135,6 +142,9 @@ def run() -> None:
             continue
 
         if resolved.status == "unreachable":
+            if is_kiosk_running():
+                time.sleep(cfg.poll_interval_sec)
+                continue
             hide_registration_prompt()
             stop_kiosk()
             show_api_unreachable_prompt(cfg.api_base_url)
