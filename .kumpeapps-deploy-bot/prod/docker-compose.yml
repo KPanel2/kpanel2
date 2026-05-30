@@ -38,9 +38,7 @@ services:
       - KPANEL_OIDC_CUSTOM_CLIENT_SECRET=${KPANEL_OIDC_CUSTOM_CLIENT_SECRET}
       - KPANEL_OIDC_CUSTOM_SERVER_METADATA_URL=${KPANEL_OIDC_CUSTOM_SERVER_METADATA_URL}
       - KPANEL_OIDC_CUSTOM_SCOPE=${KPANEL_OIDC_CUSTOM_SCOPE}
-    depends_on:
-      mariadb:
-        condition: service_healthy
+
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"]
       interval: 5s
