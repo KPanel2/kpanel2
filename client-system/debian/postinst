@@ -44,6 +44,19 @@ mkdir -p "$DEFAULTS_DIR"
 if [ ! -f "$DEFAULTS_DIR/kpanel-client" ]; then
 	cp /usr/share/kpanel-client/defaults/kpanel-client "$DEFAULTS_DIR/kpanel-client"
 fi
+
+# Grant the runtime user permission to set the system timezone without a password.
+SUDOERS_FILE="/etc/sudoers.d/kpanel-timedatectl"
+SUDOERS_TMP="${SUDOERS_FILE}.tmp"
+printf '%s ALL=(root) NOPASSWD: /usr/bin/timedatectl set-timezone *\n' "$RUNTIME_OWNER" > "$SUDOERS_TMP"
+chmod 440 "$SUDOERS_TMP"
+if visudo -c -f "$SUDOERS_TMP" >/dev/null 2>&1; then
+	mv "$SUDOERS_TMP" "$SUDOERS_FILE"
+else
+	rm -f "$SUDOERS_TMP"
+	echo "Warning: sudoers rule validation failed; KPanel timezone changes will not apply." >&2
+fi
+
 systemctl daemon-reload
 systemctl enable "$SERVICE_NAME"
 systemctl restart "$SERVICE_NAME"

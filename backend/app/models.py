@@ -12,6 +12,7 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False)
     display_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    timezone: Mapped[str] = mapped_column(String(64), nullable=False, default="America/Chicago")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
@@ -54,6 +55,7 @@ class DeviceRegistration(Base):
     last_action: Mapped[str | None] = mapped_column(String(32), nullable=True)
     last_action_status: Mapped[str | None] = mapped_column(String(64), nullable=True)
     last_action_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    timezone: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 

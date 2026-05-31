@@ -119,6 +119,7 @@ class DeviceActionAckRequest(BaseModel):
 class DeviceUpdateRequest(BaseModel):
     display_name: str | None = None
     target_url: HttpUrl | None = None
+    timezone: str | None = None
 
     @field_validator("target_url", mode="before")
     @classmethod
@@ -132,6 +133,10 @@ class DeviceUpdateRequest(BaseModel):
                 raise ValueError("Display URL must start with http:// or https://")
             return cleaned
         return v
+
+
+class AccountProfileUpdateRequest(BaseModel):
+    timezone: str | None = None
 
 
 class RegistrationCreateRequest(BaseModel):
@@ -148,6 +153,25 @@ def _clear_auth_flow(request: Request) -> None:
     request.session.pop(SESSION_AUTH_REQUEST, None)
     request.session.pop(SESSION_PENDING_AUTH, None)
     request.session.pop(SESSION_PENDING_LINK_USER_ID, None)
+
+
+def _validate_timezone(tz: str) -> str:
+    try:
+        from zoneinfo import ZoneInfo
+        ZoneInfo(tz)
+    except (KeyError, ModuleNotFoundError):
+        raise HTTPException(status_code=400, detail=f"Invalid timezone: {tz!r}")
+    return tz
+
+
+def _effective_device_timezone(device: DeviceRegistration, db: Session) -> str:
+    if device.timezone:
+        return device.timezone
+    if device.user_id:
+        user = db.get(User, device.user_id)
+        if user and user.timezone:
+            return user.timezone
+    return "America/Chicago"
 
 
 def _set_authenticated_session(request: Request, user_id: int, identity_id: int) -> None:
@@ -190,6 +214,7 @@ def _serialize_device(device: DeviceRegistration) -> dict:
         "last_action": device.last_action,
         "last_action_status": device.last_action_status,
         "last_action_at": to_iso(device.last_action_at),
+        "timezone": device.timezone,
     }
 
 
@@ -213,6 +238,27 @@ def _ensure_device_registration_columns() -> None:
         statements.append("ALTER TABLE device_registrations ADD COLUMN last_action_status VARCHAR(64)")
     if "last_action_at" not in columns:
         statements.append("ALTER TABLE device_registrations ADD COLUMN last_action_at DATETIME")
+    if "timezone" not in columns:
+        statements.append("ALTER TABLE device_registrations ADD COLUMN timezone VARCHAR(64)")
+
+    if not statements:
+        return
+
+    with engine.begin() as connection:
+        for statement in statements:
+            connection.execute(text(statement))
+
+
+def _ensure_user_columns() -> None:
+    inspector = inspect(engine)
+    try:
+        columns = {column["name"] for column in inspector.get_columns("users")}
+    except Exception:
+        return
+
+    statements: list[str] = []
+    if "timezone" not in columns:
+        statements.append("ALTER TABLE users ADD COLUMN timezone VARCHAR(64) NOT NULL DEFAULT 'America/Chicago'")
 
     if not statements:
         return
@@ -227,6 +273,7 @@ def _serialize_user(user: User, identities: list[UserIdentity], devices: list[De
         "id": user.id,
         "email": user.email,
         "display_name": user.display_name,
+        "timezone": user.timezone or "America/Chicago",
         "identities": [_serialize_identity(identity) for identity in identities],
         "devices": [_serialize_device(device) for device in devices],
     }
@@ -512,6 +559,7 @@ def startup() -> None:
     global PROVIDERS
     Base.metadata.create_all(bind=engine)
     _ensure_device_registration_columns()
+    _ensure_user_columns()
     PROVIDERS = init_oauth_clients()
 
 
@@ -683,6 +731,29 @@ def account_link_complete(request: Request, db: Session = Depends(get_db_session
     return _build_session_state(request, db)
 
 
+@app.patch("/api/v1/account/profile")
+def account_update_profile(
+    req: AccountProfileUpdateRequest,
+    request: Request,
+    db: Session = Depends(get_db_session),
+) -> dict:
+    user = _current_user(request, db)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    updated = False
+    if req.timezone is not None:
+        user.timezone = _validate_timezone(req.timezone.strip())
+        updated = True
+
+    if not updated:
+        raise HTTPException(status_code=400, detail="No editable fields were provided")
+
+    user.updated_at = now_utc()
+    db.commit()
+    return _build_session_state(request, db)
+
+
 @app.get("/api/v1/account/devices")
 def account_devices(request: Request, db: Session = Depends(get_db_session)) -> dict:
     user = _current_user(request, db)
@@ -749,6 +820,13 @@ def account_update_device(
     if req.target_url is not None:
         device.target_url = str(req.target_url)
         updated = True
+    if req.timezone is not None:
+        cleaned_tz = req.timezone.strip()
+        if cleaned_tz:
+            device.timezone = _validate_timezone(cleaned_tz)
+        else:
+            device.timezone = None
+        updated = True
 
     if not updated:
         raise HTTPException(status_code=400, detail="No editable fields were provided")
@@ -772,7 +850,13 @@ def account_delete_device(
     if device is None or device.user_id != user.id:
         raise HTTPException(status_code=404, detail="Device not found")
 
+    device_id = device.device_id
     db.delete(device)
+    # Also remove any unclaimed orphan records for the same physical device.
+    db.query(DeviceRegistration).filter(
+        DeviceRegistration.device_id == device_id,
+        DeviceRegistration.user_id == None,  # noqa: E711
+    ).delete(synchronize_session=False)
     db.commit()
     return {"status": "deleted", "registration_code": registration_code.strip().upper()}
 
@@ -853,7 +937,11 @@ def device_bootstrap(req: DeviceBootstrapRequest, db: Session = Depends(get_db_s
     if device is None:
         existing_code = db.get(DeviceRegistration, registration_code)
         if existing_code is not None and existing_code.device_id != req.device_id:
-            raise HTTPException(status_code=409, detail="Registration code is already in use by another device")
+            if existing_code.user_id is not None:
+                raise HTTPException(status_code=409, detail="Registration code is already in use by another device")
+            # Unclaimed orphan — remove it so this device can take the code.
+            db.delete(existing_code)
+            db.flush()
 
         device = DeviceRegistration(
             registration_code=registration_code,
@@ -873,7 +961,11 @@ def device_bootstrap(req: DeviceBootstrapRequest, db: Session = Depends(get_db_s
         if registration_code != device.registration_code:
             existing_code = db.get(DeviceRegistration, registration_code)
             if existing_code is not None and existing_code.device_id != req.device_id:
-                raise HTTPException(status_code=409, detail="Registration code is already in use by another device")
+                if existing_code.user_id is not None:
+                    raise HTTPException(status_code=409, detail="Registration code is already in use by another device")
+                # Unclaimed orphan — remove it so this device can take the code.
+                db.delete(existing_code)
+                db.flush()
 
             # Rotating the registration code re-enters claim flow for this device.
             device.registration_code = registration_code
@@ -923,10 +1015,8 @@ def resolve_device(
         "registration_code": device.registration_code,
         "configured_url": device.target_url,
         "pending_action": device.pending_action,
+        "timezone": _effective_device_timezone(device, db),
     }
-
-
-@app.post("/api/v1/devices/{device_id}/actions/ack")
 def ack_device_action(
     device_id: str,
     req: DeviceActionAckRequest,
@@ -972,4 +1062,5 @@ def get_device_config(
         "registration_code": device.registration_code,
         "configured_url": device.target_url,
         "pending_action": device.pending_action,
+        "timezone": _effective_device_timezone(device, db),
     }

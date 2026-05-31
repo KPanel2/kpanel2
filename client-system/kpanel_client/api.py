@@ -17,6 +17,7 @@ class ResolveResult:
     status: str
     configured_url: str | None = None
     pending_action: str | None = None
+    timezone: str | None = None
     error: str = ""
 
 
@@ -59,6 +60,8 @@ class KPanelApiClient:
         except ValueError:
             return BootstrapResult(ok=False, error="bad-response")
 
+        if resp.status_code == 409:
+            return BootstrapResult(ok=False, error="code-conflict")
         if resp.status_code != 200:
             return BootstrapResult(ok=False, error=f"http-{resp.status_code}")
 
@@ -106,6 +109,7 @@ class KPanelApiClient:
             status="configured",
             configured_url=data.get("configured_url"),
             pending_action=data.get("pending_action"),
+            timezone=data.get("timezone"),
         )
 
     def get_device_config(self, device_id: str) -> ResolveResult:
@@ -131,6 +135,7 @@ class KPanelApiClient:
             status="configured",
             configured_url=data.get("configured_url"),
             pending_action=data.get("pending_action"),
+            timezone=data.get("timezone"),
         )
 
     def ack_device_action(
