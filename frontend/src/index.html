@@ -247,6 +247,35 @@
       box-shadow: 0 0 0 3px rgba(34, 199, 255, 0.14);
     }
 
+    select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px 16px;
+      font-size: 1rem;
+      color: var(--text);
+      background: rgba(11, 29, 51, 0.88);
+      outline: none;
+      appearance: none;
+      cursor: pointer;
+    }
+
+    select:focus {
+      border-color: rgba(34, 199, 255, 0.55);
+      box-shadow: 0 0 0 3px rgba(34, 199, 255, 0.14);
+    }
+
+    select option {
+      background: #0f233d;
+      color: var(--text);
+    }
+
+    .device-edit select {
+      padding: 11px 12px;
+      font-size: 0.92rem;
+      border-radius: 10px;
+    }
+
     .actions {
       display: flex;
       flex-wrap: wrap;
@@ -445,6 +474,76 @@
 
   <script>
     let API_BASE = null;
+
+    const TIMEZONES = [
+      { value: 'UTC', label: 'UTC — Coordinated Universal Time' },
+      { value: 'America/New_York', label: 'America/New_York — Eastern Time (ET)' },
+      { value: 'America/Chicago', label: 'America/Chicago — Central Time (CT)' },
+      { value: 'America/Denver', label: 'America/Denver — Mountain Time (MT)' },
+      { value: 'America/Phoenix', label: 'America/Phoenix — Mountain Time, no DST (AZ)' },
+      { value: 'America/Los_Angeles', label: 'America/Los_Angeles — Pacific Time (PT)' },
+      { value: 'America/Anchorage', label: 'America/Anchorage — Alaska Time (AKT)' },
+      { value: 'Pacific/Honolulu', label: 'Pacific/Honolulu — Hawaii Time (HST)' },
+      { value: 'America/Puerto_Rico', label: 'America/Puerto_Rico — Atlantic Standard Time (AST)' },
+      { value: 'America/Toronto', label: 'America/Toronto — Eastern Time (Canada)' },
+      { value: 'America/Vancouver', label: 'America/Vancouver — Pacific Time (Canada)' },
+      { value: 'America/Winnipeg', label: 'America/Winnipeg — Central Time (Canada)' },
+      { value: 'America/Halifax', label: 'America/Halifax — Atlantic Time (Canada)' },
+      { value: 'America/St_Johns', label: 'America/St_Johns — Newfoundland Time (Canada)' },
+      { value: 'America/Mexico_City', label: 'America/Mexico_City — Central Time (Mexico)' },
+      { value: 'America/Bogota', label: 'America/Bogota — Colombia Time (COT)' },
+      { value: 'America/Lima', label: 'America/Lima — Peru Time (PET)' },
+      { value: 'America/Caracas', label: 'America/Caracas — Venezuela Time (VET)' },
+      { value: 'America/Santiago', label: 'America/Santiago — Chile Time (CLT)' },
+      { value: 'America/Sao_Paulo', label: 'America/Sao_Paulo — Brasilia Time (BRT)' },
+      { value: 'America/Argentina/Buenos_Aires', label: 'America/Argentina/Buenos_Aires — Argentina Time (ART)' },
+      { value: 'Europe/London', label: 'Europe/London — Greenwich / British Time (GMT/BST)' },
+      { value: 'Europe/Dublin', label: 'Europe/Dublin — Irish Standard Time (IST)' },
+      { value: 'Europe/Paris', label: 'Europe/Paris — Central European Time (CET)' },
+      { value: 'Europe/Berlin', label: 'Europe/Berlin — Central European Time (CET)' },
+      { value: 'Europe/Amsterdam', label: 'Europe/Amsterdam — Central European Time (CET)' },
+      { value: 'Europe/Rome', label: 'Europe/Rome — Central European Time (CET)' },
+      { value: 'Europe/Madrid', label: 'Europe/Madrid — Central European Time (CET)' },
+      { value: 'Europe/Stockholm', label: 'Europe/Stockholm — Central European Time (CET)' },
+      { value: 'Europe/Helsinki', label: 'Europe/Helsinki — Eastern European Time (EET)' },
+      { value: 'Europe/Athens', label: 'Europe/Athens — Eastern European Time (EET)' },
+      { value: 'Europe/Istanbul', label: 'Europe/Istanbul — Turkey Time (TRT)' },
+      { value: 'Europe/Moscow', label: 'Europe/Moscow — Moscow Time (MSK)' },
+      { value: 'Africa/Lagos', label: 'Africa/Lagos — West Africa Time (WAT)' },
+      { value: 'Africa/Cairo', label: 'Africa/Cairo — Eastern European Time (EET)' },
+      { value: 'Africa/Johannesburg', label: 'Africa/Johannesburg — South Africa Standard Time (SAST)' },
+      { value: 'Africa/Nairobi', label: 'Africa/Nairobi — East Africa Time (EAT)' },
+      { value: 'Asia/Riyadh', label: 'Asia/Riyadh — Arabia Standard Time (AST)' },
+      { value: 'Asia/Dubai', label: 'Asia/Dubai — Gulf Standard Time (GST)' },
+      { value: 'Asia/Tehran', label: 'Asia/Tehran — Iran Standard Time (IRST)' },
+      { value: 'Asia/Karachi', label: 'Asia/Karachi — Pakistan Standard Time (PKT)' },
+      { value: 'Asia/Kolkata', label: 'Asia/Kolkata — India Standard Time (IST)' },
+      { value: 'Asia/Kathmandu', label: 'Asia/Kathmandu — Nepal Time (NPT)' },
+      { value: 'Asia/Dhaka', label: 'Asia/Dhaka — Bangladesh Standard Time (BST)' },
+      { value: 'Asia/Bangkok', label: 'Asia/Bangkok — Indochina Time (ICT)' },
+      { value: 'Asia/Ho_Chi_Minh', label: 'Asia/Ho_Chi_Minh — Indochina Time (ICT)' },
+      { value: 'Asia/Jakarta', label: 'Asia/Jakarta — Western Indonesian Time (WIB)' },
+      { value: 'Asia/Singapore', label: 'Asia/Singapore — Singapore Standard Time (SGT)' },
+      { value: 'Asia/Shanghai', label: 'Asia/Shanghai — China Standard Time (CST)' },
+      { value: 'Asia/Hong_Kong', label: 'Asia/Hong_Kong — Hong Kong Time (HKT)' },
+      { value: 'Asia/Taipei', label: 'Asia/Taipei — Taipei Standard Time (TST)' },
+      { value: 'Asia/Seoul', label: 'Asia/Seoul — Korea Standard Time (KST)' },
+      { value: 'Asia/Tokyo', label: 'Asia/Tokyo — Japan Standard Time (JST)' },
+      { value: 'Australia/Perth', label: 'Australia/Perth — Australian Western Standard Time (AWST)' },
+      { value: 'Australia/Darwin', label: 'Australia/Darwin — Australian Central Standard Time (ACST)' },
+      { value: 'Australia/Adelaide', label: 'Australia/Adelaide — Australian Central Time (ACST/ACDT)' },
+      { value: 'Australia/Brisbane', label: 'Australia/Brisbane — Australian Eastern Standard Time (AEST)' },
+      { value: 'Australia/Sydney', label: 'Australia/Sydney — Australian Eastern Time (AEST/AEDT)' },
+      { value: 'Australia/Melbourne', label: 'Australia/Melbourne — Australian Eastern Time (AEST/AEDT)' },
+      { value: 'Pacific/Auckland', label: 'Pacific/Auckland — New Zealand Time (NZST/NZDT)' },
+      { value: 'Pacific/Fiji', label: 'Pacific/Fiji — Fiji Time (FJT)' },
+    ];
+
+    function buildTimezoneOptions(selectedValue) {
+      return TIMEZONES.map((tz) =>
+        `<option value="${tz.value}"${tz.value === selectedValue ? ' selected' : ''}>${tz.label}</option>`
+      ).join('');
+    }
 
     const app = document.getElementById('app');
     const message = document.getElementById('message');
@@ -760,10 +859,12 @@
       `;
     }
 
-    function renderDevices(devices) {
+    function renderDevices(devices, userTimezone) {
       if (!devices.length) {
         return '<div class="empty">No panel registration codes have been claimed yet.</div>';
       }
+
+      const profileTzLabel = userTimezone || 'America/Chicago';
 
       return `
         <div class="device-list">
@@ -773,6 +874,7 @@
               <div class="muted">Code: <code>${device.registration_code}</code></div>
               <div class="muted">Device ID: <code>${device.device_id}</code></div>
               <div class="muted">Target URL: ${device.target_url || 'Pending'}</div>
+              <div class="muted">Time zone: ${device.timezone || `(Profile: ${profileTzLabel})`}</div>
               <div class="muted">Client version: ${device.client_version || 'Unknown'}</div>
               <div class="muted">Pending action: ${device.pending_action || 'None'}</div>
               <div class="muted">Last action: ${device.last_action || 'None'} (${device.last_action_status || 'n/a'})</div>
@@ -786,6 +888,13 @@
                 <div class="field">
                   <label for="edit-url-${device.registration_code}">Target URL</label>
                   <input id="edit-url-${device.registration_code}" data-device-edit-url="${device.registration_code}" value="${device.target_url || ''}" placeholder="https://dashboard.example.com/panel" />
+                </div>
+                <div class="field">
+                  <label for="edit-tz-${device.registration_code}">Time zone</label>
+                  <select id="edit-tz-${device.registration_code}" data-device-edit-tz="${device.registration_code}">
+                    <option value="">Use profile time zone (${profileTzLabel})</option>
+                    ${buildTimezoneOptions(device.timezone || '')}
+                  </select>
                 </div>
                 <div class="device-actions">
                   <button type="button" class="primary" data-device-save="${device.registration_code}">Save</button>
@@ -810,12 +919,30 @@
         .map((provider) => provider.name)
         .filter((name) => !user.identities.some((identity) => identity.provider_name === name));
 
+      const profileTimezone = user.timezone || 'America/Chicago';
+
       return `
         <div class="card">
           <div class="section-title">Profile</div>
           <div class="muted">${user.display_name} (${user.email})</div>
+          <div class="muted" style="margin-top:6px;">Time zone: <strong style="color:var(--text);">${profileTimezone}</strong></div>
           <div class="pill-row" style="margin-top:14px;">
             ${user.identities.map((identity) => `<div class="pill">${providerLabel(identity.provider_name)}</div>`).join('')}
+          </div>
+          <div id="profileTzEdit" class="device-edit" style="margin-top:12px;">
+            <div class="field">
+              <label for="profileTimezone">Time zone</label>
+              <select id="profileTimezone">
+                ${buildTimezoneOptions(profileTimezone)}
+              </select>
+            </div>
+            <div class="device-actions">
+              <button type="button" class="primary" id="profileTzSave">Save time zone</button>
+              <button type="button" class="secondary" id="profileTzCancel">Cancel</button>
+            </div>
+          </div>
+          <div class="device-actions" style="margin-top:12px;">
+            <button type="button" class="secondary" id="profileTzEditButton">Edit time zone</button>
           </div>
         </div>
 
@@ -845,7 +972,7 @@
 
         <div class="card">
           <div class="section-title">My panels</div>
-          ${renderDevices(user.devices)}
+          ${renderDevices(user.devices, user.timezone)}
         </div>
 
         <div class="card">
@@ -969,12 +1096,16 @@
           const current = sessionState?.user?.devices?.find((item) => item.registration_code === registrationCode);
           const nameInput = document.querySelector(`[data-device-edit-name="${registrationCode}"]`);
           const urlInput = document.querySelector(`[data-device-edit-url="${registrationCode}"]`);
+          const tzSelect = document.querySelector(`[data-device-edit-tz="${registrationCode}"]`);
 
           if (nameInput && current) {
             nameInput.value = current.display_name || '';
           }
           if (urlInput && current) {
             urlInput.value = current.target_url || '';
+          }
+          if (tzSelect && current) {
+            tzSelect.value = current.timezone || '';
           }
           if (form) {
             form.classList.remove('active');
@@ -987,6 +1118,7 @@
           const registrationCode = button.dataset.deviceSave;
           const nameInput = document.querySelector(`[data-device-edit-name="${registrationCode}"]`);
           const urlInput = document.querySelector(`[data-device-edit-url="${registrationCode}"]`);
+          const tzSelect = document.querySelector(`[data-device-edit-tz="${registrationCode}"]`);
           const form = document.querySelector(`[data-device-edit-form="${registrationCode}"]`);
           if (!registrationCode || !nameInput || !urlInput) {
             return;
@@ -994,6 +1126,7 @@
 
           const displayName = nameInput.value.trim();
           const targetUrl = urlInput.value.trim();
+          const timezone = tzSelect ? tzSelect.value : '';
 
           const targetUrlValidation = validateHttpUrlInput(targetUrl, true);
           if (!targetUrlValidation.ok) {
@@ -1008,6 +1141,7 @@
               body: JSON.stringify({
                 display_name: displayName.trim(),
                 target_url: targetUrlValidation.value,
+                timezone: timezone || null,
               }),
             });
             if (form) {
@@ -1039,6 +1173,44 @@
           }
         });
       });
+
+      const profileTzEditButton = document.getElementById('profileTzEditButton');
+      const profileTzEdit = document.getElementById('profileTzEdit');
+      if (profileTzEditButton && profileTzEdit) {
+        profileTzEditButton.addEventListener('click', () => {
+          profileTzEdit.classList.add('active');
+          profileTzEditButton.hidden = true;
+        });
+      }
+
+      const profileTzCancel = document.getElementById('profileTzCancel');
+      if (profileTzCancel && profileTzEdit && profileTzEditButton) {
+        profileTzCancel.addEventListener('click', () => {
+          const current = sessionState?.user?.timezone || 'America/Chicago';
+          const sel = document.getElementById('profileTimezone');
+          if (sel) sel.value = current;
+          profileTzEdit.classList.remove('active');
+          profileTzEditButton.hidden = false;
+        });
+      }
+
+      const profileTzSave = document.getElementById('profileTzSave');
+      if (profileTzSave) {
+        profileTzSave.addEventListener('click', async () => {
+          const sel = document.getElementById('profileTimezone');
+          if (!sel) return;
+          setMessage('pending', 'Saving time zone...');
+          try {
+            await api('/api/v1/account/profile', {
+              method: 'PATCH',
+              body: JSON.stringify({ timezone: sel.value }),
+            });
+            await loadSession();
+          } catch (error) {
+            setMessage('error', error.message);
+          }
+        });
+      }
 
       document.querySelectorAll('[data-device-action]').forEach((button) => {
         button.addEventListener('click', async () => {

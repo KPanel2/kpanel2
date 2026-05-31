@@ -8,6 +8,7 @@ import secrets
 class DeviceState:
     registration_code: str
     device_token: str = ""
+    applied_timezone: str = ""
 
 
 def generate_registration_code() -> str:
@@ -25,6 +26,7 @@ def load_or_create_state(state_path: str, registration_code_override: str = "") 
                 {
                     "registration_code": state.registration_code,
                     "device_token": state.device_token,
+                    "applied_timezone": state.applied_timezone,
                 },
                 indent=2,
             ),
@@ -37,7 +39,8 @@ def load_or_create_state(state_path: str, registration_code_override: str = "") 
             data = json.loads(path.read_text(encoding="utf-8"))
             code = str(data.get("registration_code", "")).strip().upper()
             token = str(data.get("device_token", "")).strip()
-            return DeviceState(registration_code=code, device_token=token)
+            applied_tz = str(data.get("applied_timezone", "")).strip()
+            return DeviceState(registration_code=code, device_token=token, applied_timezone=applied_tz)
         except (json.JSONDecodeError, OSError):
             pass
 
@@ -47,6 +50,7 @@ def load_or_create_state(state_path: str, registration_code_override: str = "") 
             {
                 "registration_code": state.registration_code,
                 "device_token": state.device_token,
+                "applied_timezone": state.applied_timezone,
             },
             indent=2,
         ),
@@ -63,6 +67,7 @@ def persist_state(state_path: str, state: DeviceState) -> None:
             {
                 "registration_code": state.registration_code,
                 "device_token": state.device_token,
+                "applied_timezone": state.applied_timezone,
             },
             indent=2,
         ),

@@ -22,6 +22,22 @@ from kpanel_client.wifi_boot_config import connect_from_boot_config
 from kpanel_client.wifi_onboarding import prompt_and_connect_wifi
 
 
+def _apply_timezone(timezone: str) -> None:
+    try:
+        result = subprocess.run(
+            ["sudo", "timedatectl", "set-timezone", timezone],
+            check=False,
+            capture_output=True,
+        )
+        if result.returncode == 0:
+            print(f"Timezone set to {timezone}")
+        else:
+            stderr = result.stderr.decode(errors="replace").strip()
+            print(f"Failed to set timezone to {timezone}: {stderr}")
+    except Exception as exc:
+        print(f"Failed to set timezone to {timezone}: {exc}")
+
+
 def _run_pending_action(api: KPanelApiClient, cfg: ClientConfig, registration_code: str, action: str) -> None:
     normalized = (action or "").strip().lower()
     if normalized not in {"update", "reboot"}:
@@ -99,6 +115,12 @@ def run() -> None:
 
         bootstrap_result = api.bootstrap_device(cfg.device_id, state.registration_code)
         if not bootstrap_result.ok:
+            if bootstrap_result.error == "code-conflict":
+                # Registration code is taken by a different device; generate a fresh one.
+                state.registration_code = generate_registration_code()
+                persist_state(cfg.state_path, state)
+                time.sleep(cfg.poll_interval_sec)
+                continue
             if is_kiosk_running():
                 time.sleep(cfg.poll_interval_sec)
                 continue
@@ -166,6 +188,12 @@ def run() -> None:
 
         hide_registration_prompt()
         launch_kiosk(resolved.configured_url)
+
+        if resolved.timezone and resolved.timezone != state.applied_timezone:
+            _apply_timezone(resolved.timezone)
+            state.applied_timezone = resolved.timezone
+            persist_state(cfg.state_path, state)
+
         time.sleep(cfg.poll_interval_sec)
 
 
