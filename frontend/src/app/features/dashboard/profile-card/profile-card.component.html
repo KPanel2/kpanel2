@@ -1,0 +1,54 @@
+<div class="card profile-card">
+  <div class="card-header">
+    <h2>Profile</h2>
+    <button *ngIf="!editing" class="btn-ghost" (click)="startEdit()">Edit</button>
+  </div>
+
+  <ng-container *ngIf="!editing">
+    <div class="profile-row">
+      <span class="label">Name</span>
+      <span class="value">{{ user.display_name }}</span>
+    </div>
+    <div class="profile-row">
+      <span class="label">Email</span>
+      <span class="value">{{ user.email }}</span>
+    </div>
+    <div class="profile-row">
+      <span class="label">Timezone</span>
+      <span class="value">{{ user.timezone }}</span>
+    </div>
+    <div class="profile-row" *ngIf="user.identities?.length">
+      <span class="label">Linked providers</span>
+      <div class="pills">
+        <span
+          class="pill"
+          [ngClass]="'pill--' + id.provider_name"
+          *ngFor="let id of user.identities">
+          <span class="pill-icon" [innerHTML]="providerIcon(id.provider_name)"></span>
+          <span class="pill-label">{{ providerLabel(id.provider_name) }}</span>
+        </span>
+      </div>
+    </div>
+    <p *ngIf="success" class="success-msg">{{ success }}</p>
+  </ng-container>
+
+  <ng-container *ngIf="editing">
+    <form class="form" (ngSubmit)="save()">
+      <label class="field">
+        <span>Display Name</span>
+        <input type="text" [(ngModel)]="displayName" name="displayName" required />
+      </label>
+      <label class="field">
+        <span>Timezone</span>
+        <app-timezone-select [(ngModel)]="timezone" name="timezone"></app-timezone-select>
+      </label>
+      <p *ngIf="error" class="error-msg">{{ error }}</p>
+      <div class="btn-row">
+        <button type="submit" class="btn-primary" [disabled]="saving">
+          {{ saving ? 'Saving…' : 'Save' }}
+        </button>
+        <button type="button" class="btn-ghost" (click)="cancel()">Cancel</button>
+      </div>
+    </form>
+  </ng-container>
+</div>

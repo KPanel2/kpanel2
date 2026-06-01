@@ -1,0 +1,204 @@
+.auth-shell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 2rem;
+}
+
+.auth-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2.5rem 2rem;
+  width: 100%;
+  max-width: 420px;
+}
+
+.hero {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.logo-img {
+  display: block;
+  margin: 0 auto 0.5rem;
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 12px rgba(34, 199, 255, 0.35));
+}
+
+.logo-text {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 2.2rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.tagline {
+  color: var(--text-muted);
+  margin-top: 0.5rem;
+  font-size: 0.95rem;
+}
+
+.providers {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.provider-button {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 0.75rem 1.25rem;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+
+  &:hover {
+    border-color: var(--primary);
+    background: rgba(34, 199, 255, 0.06);
+  }
+
+  // ── Provider brand overrides ──────────────────────────────────────────
+  &--github {
+    background: #24292e;
+    border-color: #24292e;
+    color: #ffffff;
+    &:hover { background: #2f363d; border-color: #2f363d; }
+  }
+
+  &--google {
+    background: #ffffff;
+    border-color: #747775;
+    color: #1f1f1f;
+    font-family: 'Roboto', 'Google Sans', arial, sans-serif;
+    letter-spacing: 0.01em;
+    min-height: 40px;
+    &:hover { background: #f8f9fa; border-color: #747775; }
+  }
+
+  &--facebook {
+    background: #1877f2;
+    border-color: #1877f2;
+    color: #ffffff;
+    &:hover { background: #0c63d4; border-color: #0c63d4; }
+  }
+
+  &--apple {
+    background: #000000;
+    border-color: #000000;
+    color: #ffffff;
+    &:hover { background: #1a1a1a; border-color: #1a1a1a; }
+  }
+
+  &--microsoft_login,
+  &--microsoft_entra {
+    background: #ffffff;
+    border-color: #8c8c8c;
+    color: #5e5e5e;
+    font-family: 'Segoe UI', sans-serif;
+    &:hover { background: #f3f3f3; border-color: #7a7a7a; }
+  }
+}
+
+.provider-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1.25rem 0 0.5rem;
+  position: relative;
+
+  &::before {
+    content: 'or';
+    background: var(--surface);
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    left: 50%;
+    padding: 0 0.75rem;
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+  }
+}
+
+.provider-icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+
+  // ::ng-deep is needed because SVGs are injected via [innerHTML]; Angular's
+  // emulated encapsulation does not add the scoped attribute to those nodes.
+  // eslint-disable-next-line @angular-eslint/no-host-metadata-property
+  ::ng-deep svg {
+    display: block;
+    width: 20px;
+    height: 20px;
+  }
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-weight: 600;
+
+  input, select {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font-size: 0.95rem;
+    padding: 0.6rem 0.9rem;
+    width: 100%;
+
+    &:focus {
+      border-color: var(--primary);
+      outline: none;
+    }
+  }
+}
+
+.info-msg {
+  background: rgba(34, 199, 255, 0.08);
+  border: 1px solid rgba(34, 199, 255, 0.2);
+  border-radius: 10px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+}
+
+.error-msg {
+  background: rgba(255, 107, 122, 0.1);
+  border: 1px solid rgba(255, 107, 122, 0.3);
+  border-radius: 10px;
+  color: var(--danger);
+  font-size: 0.9rem;
+  padding: 0.65rem 0.9rem;
+}
+
+.btn-row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}

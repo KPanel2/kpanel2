@@ -1,0 +1,89 @@
+<div class="detail-overlay">
+  <div class="detail-panel">
+
+    <div class="detail-header">
+      <div class="detail-title">
+        <button class="btn-ghost back-btn" (click)="close()">← Back</button>
+        <h2>{{ household.name }}</h2>
+      </div>
+      <div class="detail-tabs">
+        <button *ngFor="let tab of ['devices','floors','rooms','urls','members','settings']"
+          class="tab-btn"
+          [class.active]="activeTab === tab"
+          (click)="setTab($any(tab))">
+          {{ tab | titlecase }}
+        </button>
+      </div>
+    </div>
+
+    <!-- ── Devices ───────────────────────────────────────────────────── -->
+    <div *ngIf="activeTab === 'devices'" class="tab-content">
+      <div *ngIf="householdDevices.length === 0" class="empty-state">
+        No devices are assigned to rooms in this household yet.
+      </div>
+      <app-device-card
+        *ngFor="let d of householdDevices"
+        [device]="d"
+        [households]="[household]"
+        (changed)="devicesChanged.emit()">
+      </app-device-card>
+    </div>
+
+    <!-- ── Floors ─────────────────────────────────────────────────────── -->
+    <app-floor-manager
+      *ngIf="activeTab === 'floors'"
+      [household]="household"
+      (floorsChanged)="onFloorsChanged()">
+    </app-floor-manager>
+
+    <!-- ── Rooms ──────────────────────────────────────────────────────── -->
+    <app-room-manager
+      *ngIf="activeTab === 'rooms'"
+      [household]="household"
+      (roomsChanged)="onRoomsChanged()">
+    </app-room-manager>
+
+    <!-- ── URLs ───────────────────────────────────────────────────────── -->
+    <app-url-manager
+      *ngIf="activeTab === 'urls'"
+      [household]="household"
+      (urlsChanged)="onUrlsChanged()">
+    </app-url-manager>
+
+    <!-- ── Members ────────────────────────────────────────────────────── -->
+    <app-member-manager
+      *ngIf="activeTab === 'members'"
+      [household]="household"
+      [isOwner]="isOwner"
+      (membersChanged)="onMembersChanged()">
+    </app-member-manager>
+
+    <!-- ── Settings ───────────────────────────────────────────────────── -->
+    <div *ngIf="activeTab === 'settings'" class="tab-content">
+      <h3>Household Settings</h3>
+      <form class="form" (ngSubmit)="saveSettings()">
+        <label class="field">
+          <span>Name</span>
+          <input type="text" [(ngModel)]="editingName" name="name" required />
+        </label>
+        <label class="field">
+          <span>Timezone</span>
+          <app-timezone-select [(ngModel)]="editingTz" name="timezone"
+                                placeholder="Default (owner's timezone)">
+          </app-timezone-select>
+        </label>
+        <p *ngIf="settingsError" class="error-msg">{{ settingsError }}</p>
+        <p *ngIf="settingsSuccess" class="success-msg">{{ settingsSuccess }}</p>
+        <div class="btn-row">
+          <button type="submit" class="btn-primary" [disabled]="savingSettings">
+            {{ savingSettings ? 'Saving…' : 'Save Settings' }}
+          </button>
+          <button *ngIf="isOwner" type="button" class="btn-danger" (click)="deleteHousehold()">
+            Delete Household
+          </button>
+        </div>
+      </form>
+    </div>
+
+  </div>
+</div>

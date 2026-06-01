@@ -82,6 +82,7 @@ deploy_rules:
     branches:
       include:
         - main
+    registry_package: true
 
 workflow_checks:
   require:

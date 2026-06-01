@@ -1,8 +1,10 @@
 from dataclasses import dataclass
+import logging
 import os
 
 from authlib.integrations.starlette_client import OAuth
 
+logger = logging.getLogger(__name__)
 
 oauth = OAuth()
 
@@ -135,11 +137,24 @@ def configured_provider_map() -> dict[str, ProviderConfig]:
 
 
 def init_oauth_clients() -> dict[str, ProviderConfig]:
+    """
+    Register OAuth clients for all configured providers.
+
+    Each provider is registered independently so that a failure for one
+    provider (e.g. bad metadata URL) does not prevent other providers from
+    loading.  Non-OAuth providers (auth_mode != "oauth", e.g. dev_email) are
+    always included in the returned dict without going through authlib.
+    """
     providers = configured_provider_map()
-    for provider in providers.values():
+    registered: dict[str, ProviderConfig] = {}
+
+    for name, provider in providers.items():
         if provider.auth_mode != "oauth":
+            # Non-OAuth providers don't need client registration
+            registered[name] = provider
             continue
-        register_kwargs = {
+
+        register_kwargs: dict = {
             "client_id": provider.client_id,
             "client_secret": provider.client_secret,
             "client_kwargs": {"scope": provider.scope, **(provider.client_kwargs or {})},
@@ -153,8 +168,14 @@ def init_oauth_clients() -> dict[str, ProviderConfig]:
         if provider.api_base_url:
             register_kwargs["api_base_url"] = provider.api_base_url
 
-        oauth.register(provider.name, **register_kwargs)
-    return providers
+        try:
+            oauth.register(name, **register_kwargs)
+            registered[name] = provider
+            logger.info("Registered OAuth provider: %s", name)
+        except Exception:
+            logger.exception("Failed to register OAuth provider %s — it will be unavailable", name)
+
+    return registered
 
 
 def provider_summaries() -> list[dict]:

@@ -1,0 +1,58 @@
+.profile-card {
+  .profile-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border);
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+
+  .label {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-weight: 600;
+    min-width: 140px;
+  }
+
+  .value {
+    color: var(--text);
+    font-size: 0.95rem;
+  }
+
+  .pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  // Base pill style
+  .pill {
+    align-items: center;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text);
+    display: inline-flex;
+    font-size: 0.8rem;
+    font-weight: 600;
+    gap: 0.35rem;
+    padding: 0.25rem 0.65rem;
+
+    // ::ng-deep needed because SVGs are injected via [innerHTML]
+    .pill-icon ::ng-deep svg { display: block; }
+    .pill-icon { display: flex; align-items: center; flex-shrink: 0; }
+
+    // ── Brand overrides ────────────────────────────────────────────────
+    &--github       { background: #24292e; border-color: #24292e; color: #fff; }
+    &--google       { background: #fff;    border-color: #dadce0; color: #3c4043; }
+    &--facebook     { background: #1877f2; border-color: #1877f2; color: #fff; }
+    &--apple        { background: #000;    border-color: #000;    color: #fff; }
+    &--microsoft_login,
+    &--microsoft_entra { background: #fff; border-color: #8c8c8c; color: #5e5e5e; }
+    &--dev_email    { background: rgba(34,199,255,0.1); border-color: rgba(34,199,255,0.3); color: var(--primary); }
+  }
+}

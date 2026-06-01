@@ -1,0 +1,125 @@
+<div class="auth-shell">
+  <div class="auth-card" *ngIf="session">
+
+    <!-- ── Unauthenticated / provider selection ──────────────────────── -->
+    <ng-container *ngIf="status === 'unauthenticated'">
+      <div class="hero">
+        <img class="logo-img" src="logo.webp" alt="kPanel" />
+        <span class="logo-text">kPanel</span>
+        <p class="tagline">Sign in to manage your devices</p>
+      </div>
+      <div class="providers" *ngIf="oauthProviders.length > 0">
+        <button
+          *ngFor="let p of oauthProviders"
+          class="provider-button"
+          [ngClass]="'provider-button--' + p.name"
+          (click)="loginWith(p.name)">
+          <span class="provider-icon" [innerHTML]="providerIcon(p.name)"></span>
+          <span>Sign in with {{ p.label }}</span>
+        </button>
+      </div>
+      <hr *ngIf="oauthProviders.length > 0 && hasDevLogin" class="provider-divider" />
+      <form class="form dev-login-form" *ngIf="hasDevLogin" (ngSubmit)="devLogin()">
+        <label class="field">
+          <span>Dev Email</span>
+          <input type="email" [(ngModel)]="devEmail" name="devEmail"
+                 placeholder="you@example.com" required />
+        </label>
+        <button type="submit" class="btn-secondary" [disabled]="!devEmail.trim()">
+          Sign In (Dev)
+        </button>
+      </form>
+      <p *ngIf="session.message" class="info-msg">{{ session.message }}</p>
+    </ng-container>
+
+    <!-- ── Needs account creation ────────────────────────────────────── -->
+    <ng-container *ngIf="status === 'needs_account'">
+      <div class="hero">
+        <img class="logo-img" src="logo.webp" alt="kPanel" />
+        <span class="logo-text">kPanel</span>
+        <p class="tagline">Create Account</p>
+      </div>
+      <ng-container *ngIf="session.pending as pending">
+        <p class="info-msg">
+          Signed in as <strong>{{ pending.email }}</strong> via {{ pending.provider_name }}
+        </p>
+      </ng-container>
+      <form class="form" (ngSubmit)="createAccount()">
+        <label class="field">
+          <span>Display Name</span>
+          <input type="text" [(ngModel)]="displayName" name="displayName"
+                 placeholder="Your name" required />
+        </label>
+        <label class="field">
+          <span>Timezone</span>
+          <app-timezone-select [(ngModel)]="timezone" name="timezone"></app-timezone-select>
+        </label>
+        <p *ngIf="error" class="error-msg">{{ error }}</p>
+        <button type="submit" class="btn-primary" [disabled]="loading">
+          {{ loading ? 'Creating…' : 'Create Account' }}
+        </button>
+      </form>
+    </ng-container>
+
+    <!-- ── Needs account linking ─────────────────────────────────────── -->
+    <ng-container *ngIf="status === 'needs_link'">
+      <div class="hero">
+        <img class="logo-img" src="logo.webp" alt="kPanel" />
+        <span class="logo-text">kPanel</span>
+        <p class="tagline">Link Account</p>
+      </div>
+      <ng-container *ngIf="session && session.pending as pending">
+        <p class="info-msg">
+          Sign in to your existing account to link
+          <strong>{{ pending.provider_name }}</strong>
+          ({{ pending.email }}).
+        </p>
+      </ng-container>
+      <div class="providers" *ngIf="oauthProviders.length > 0">
+        <button
+          *ngFor="let p of oauthProviders"
+          class="provider-button"
+          [ngClass]="'provider-button--' + p.name"
+          (click)="loginWith(p.name)">
+          <span class="provider-icon" [innerHTML]="providerIcon(p.name)"></span>
+          <span>Continue with {{ p.label }}</span>
+        </button>
+      </div>
+      <hr *ngIf="oauthProviders.length > 0 && hasDevLogin" class="provider-divider" />
+      <form class="form dev-login-form" *ngIf="hasDevLogin" (ngSubmit)="devLogin()">
+        <label class="field">
+          <span>Dev Email</span>
+          <input type="email" [(ngModel)]="devEmail" name="devEmail"
+                 placeholder="you@example.com" required />
+        </label>
+        <button type="submit" class="btn-secondary" [disabled]="!devEmail.trim()">
+          Continue (Dev)
+        </button>
+      </form>
+      <p *ngIf="error" class="error-msg">{{ error }}</p>
+    </ng-container>
+
+    <!-- ── Link ready to confirm ─────────────────────────────────────── -->
+    <ng-container *ngIf="status === 'link_ready'">
+      <div class="hero">
+        <img class="logo-img" src="logo.webp" alt="kPanel" />
+        <span class="logo-text">kPanel</span>
+        <p class="tagline">Confirm Link</p>
+      </div>
+      <ng-container *ngIf="session && session.pending as pending">
+        <p class="info-msg">
+          Link <strong>{{ pending.provider_name }}</strong>
+          ({{ pending.email }}) to your account?
+        </p>
+      </ng-container>
+      <p *ngIf="error" class="error-msg">{{ error }}</p>
+      <div class="btn-row">
+        <button class="btn-primary" (click)="completeLink()" [disabled]="loading">
+          {{ loading ? 'Linking…' : 'Confirm Link' }}
+        </button>
+        <button class="btn-secondary" (click)="cancelLink()" [disabled]="loading">Cancel</button>
+      </div>
+    </ng-container>
+
+  </div>
+</div>

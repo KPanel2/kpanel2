@@ -1,0 +1,29 @@
+<div class="tab-content">
+  <div class="manager-header">
+    <h3>Members</h3>
+    <button class="btn-primary" *ngIf="isOwner" (click)="adding = !adding">
+      {{ adding ? 'Cancel' : '+ Add Member' }}
+    </button>
+  </div>
+
+  <div class="create-row" *ngIf="adding && isOwner">
+    <input type="email" [(ngModel)]="newEmail" placeholder="user@example.com" />
+    <button class="btn-primary" (click)="addMember()" [disabled]="!newEmail.trim()">Add</button>
+  </div>
+
+  <p *ngIf="error" class="error-msg">{{ error }}</p>
+  <p *ngIf="success" class="success-msg">{{ success }}</p>
+
+  <div class="empty-state" *ngIf="members.length === 0">No members yet.</div>
+
+  <div class="item-list">
+    <div class="item-row" *ngFor="let m of members">
+      <span class="item-name">{{ m.display_name || m.email }}</span>
+      <span class="item-meta">{{ m.email }}</span>
+      <span class="pill" [class.accent]="m.role === 'owner'">{{ m.role }}</span>
+      <div class="item-actions" *ngIf="isOwner && m.user_id !== currentUserId">
+        <button class="btn-danger-ghost" (click)="removeMember(m)">Remove</button>
+      </div>
+    </div>
+  </div>
+</div>

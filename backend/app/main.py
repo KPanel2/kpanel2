@@ -12,7 +12,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app.auth import require_admin_api_key, require_device_access
 from app.db import Base, engine, get_db_session
-from app.models import DeviceRegistration, Registration, User, UserIdentity
+from app.models import DeviceRegistration, Household, HouseholdUrl, Registration, Room, User, UserIdentity
 from app.providers import ProviderConfig, init_oauth_clients, oauth
 from app.security import issue_device_token
 from app.session_auth import now_utc, to_iso
@@ -59,6 +59,10 @@ app.add_middleware(
 # Must be outermost so X-Forwarded-Proto is resolved before any other
 # middleware or route handler builds URLs (e.g. OAuth callback redirect_uri).
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
+
+from app.households import router as _households_router  # noqa: E402
+
+app.include_router(_households_router)
 
 
 PROVIDERS: dict[str, ProviderConfig] = {}
@@ -120,6 +124,10 @@ class DeviceUpdateRequest(BaseModel):
     display_name: str | None = None
     target_url: HttpUrl | None = None
     timezone: str | None = None
+    room_id: int | None = None
+    clear_room: bool = False
+    url_mode: str | None = None
+    household_url_id: int | None = None
 
     @field_validator("target_url", mode="before")
     @classmethod
@@ -133,6 +141,21 @@ class DeviceUpdateRequest(BaseModel):
                 raise ValueError("Display URL must start with http:// or https://")
             return cleaned
         return v
+
+
+class DeviceTempUrlSetRequest(BaseModel):
+    temp_url: str
+
+    @field_validator("temp_url", mode="before")
+    @classmethod
+    def _validate_scheme(cls, v: object) -> object:
+        if not isinstance(v, str) or not v.strip():
+            raise ValueError("temp_url is required")
+        cleaned = v.strip()
+        lowered = cleaned.lower()
+        if not (lowered.startswith("http://") or lowered.startswith("https://")):
+            raise ValueError("temp_url must start with http:// or https://")
+        return cleaned
 
 
 class AccountProfileUpdateRequest(BaseModel):
@@ -167,6 +190,12 @@ def _validate_timezone(tz: str) -> str:
 def _effective_device_timezone(device: DeviceRegistration, db: Session) -> str:
     if device.timezone:
         return device.timezone
+    if device.room_id:
+        room = db.get(Room, device.room_id)
+        if room:
+            household = db.get(Household, room.household_id)
+            if household and household.timezone:
+                return household.timezone
     if device.user_id:
         user = db.get(User, device.user_id)
         if user and user.timezone:
@@ -200,7 +229,9 @@ def _serialize_identity(identity: UserIdentity) -> dict:
     }
 
 
-def _serialize_device(device: DeviceRegistration) -> dict:
+def _serialize_device(device: DeviceRegistration, db: Session | None = None) -> dict:
+    from app.households import resolve_device_url
+
     return {
         "registration_code": device.registration_code,
         "device_id": device.device_id,
@@ -215,6 +246,15 @@ def _serialize_device(device: DeviceRegistration) -> dict:
         "last_action_status": device.last_action_status,
         "last_action_at": to_iso(device.last_action_at),
         "timezone": device.timezone,
+        "room_id": device.room_id,
+        "url_mode": device.url_mode or "custom",
+        "household_url_id": device.household_url_id,
+        "has_temp_url": bool(device.temp_url),
+        "temp_url": device.temp_url,
+        "temp_url_revert_mode": device.temp_url_revert_mode,
+        "temp_url_revert_household_url_id": device.temp_url_revert_household_url_id,
+        "temp_url_set_at": to_iso(device.temp_url_set_at),
+        "resolved_url": resolve_device_url(device, db) if db is not None else None,
     }
 
 
@@ -240,6 +280,20 @@ def _ensure_device_registration_columns() -> None:
         statements.append("ALTER TABLE device_registrations ADD COLUMN last_action_at DATETIME")
     if "timezone" not in columns:
         statements.append("ALTER TABLE device_registrations ADD COLUMN timezone VARCHAR(64)")
+    if "room_id" not in columns:
+        statements.append("ALTER TABLE device_registrations ADD COLUMN room_id INT")
+    if "url_mode" not in columns:
+        statements.append("ALTER TABLE device_registrations ADD COLUMN url_mode VARCHAR(16)")
+    if "household_url_id" not in columns:
+        statements.append("ALTER TABLE device_registrations ADD COLUMN household_url_id INT")
+    if "temp_url" not in columns:
+        statements.append("ALTER TABLE device_registrations ADD COLUMN temp_url TEXT")
+    if "temp_url_revert_mode" not in columns:
+        statements.append("ALTER TABLE device_registrations ADD COLUMN temp_url_revert_mode VARCHAR(16)")
+    if "temp_url_revert_household_url_id" not in columns:
+        statements.append("ALTER TABLE device_registrations ADD COLUMN temp_url_revert_household_url_id INT")
+    if "temp_url_set_at" not in columns:
+        statements.append("ALTER TABLE device_registrations ADD COLUMN temp_url_set_at DATETIME")
 
     if not statements:
         return
@@ -268,14 +322,14 @@ def _ensure_user_columns() -> None:
             connection.execute(text(statement))
 
 
-def _serialize_user(user: User, identities: list[UserIdentity], devices: list[DeviceRegistration]) -> dict:
+def _serialize_user(user: User, identities: list[UserIdentity], devices: list[DeviceRegistration], db: Session | None = None) -> dict:
     return {
         "id": user.id,
         "email": user.email,
         "display_name": user.display_name,
         "timezone": user.timezone or "America/Chicago",
         "identities": [_serialize_identity(identity) for identity in identities],
-        "devices": [_serialize_device(device) for device in devices],
+        "devices": [_serialize_device(device, db) for device in devices],
     }
 
 
@@ -544,13 +598,13 @@ def _build_session_state(request: Request, db: Session, revoked: bool = False) -
                     "provider_name": pending["provider_name"],
                     "display_name": pending["display_name"],
                 },
-                "user": _serialize_user(user, identities, devices),
+                "user": _serialize_user(user, identities, devices, db),
             }
 
     return {
         "status": "authenticated",
         "providers": providers,
-        "user": _serialize_user(user, identities, devices),
+        "user": _serialize_user(user, identities, devices, db),
     }
 
 
@@ -766,7 +820,7 @@ def account_devices(request: Request, db: Session = Depends(get_db_session)) -> 
         .order_by(DeviceRegistration.created_at.desc())
         .all()
     )
-    return {"devices": [_serialize_device(device) for device in devices]}
+    return {"devices": [_serialize_device(device, db) for device in devices]}
 
 
 @app.post("/api/v1/account/devices/claim")
@@ -794,7 +848,7 @@ def account_claim_device(
     device.claimed_at = timestamp
     device.updated_at = timestamp
     db.commit()
-    return {"status": "configured" if device.target_url else "claimed", "device": _serialize_device(device)}
+    return {"status": "configured" if device.target_url else "claimed", "device": _serialize_device(device, db)}
 
 
 @app.patch("/api/v1/account/devices/{registration_code}")
@@ -819,6 +873,8 @@ def account_update_device(
         updated = True
     if req.target_url is not None:
         device.target_url = str(req.target_url)
+        if device.url_mode is None:
+            device.url_mode = "custom"
         updated = True
     if req.timezone is not None:
         cleaned_tz = req.timezone.strip()
@@ -827,13 +883,28 @@ def account_update_device(
         else:
             device.timezone = None
         updated = True
+    if req.clear_room:
+        device.room_id = None
+        updated = True
+    elif req.room_id is not None:
+        device.room_id = req.room_id
+        updated = True
+    if req.url_mode is not None:
+        cleaned_mode = req.url_mode.strip().lower()
+        if cleaned_mode not in {"custom", "household_url"}:
+            raise HTTPException(status_code=400, detail="url_mode must be 'custom' or 'household_url'")
+        device.url_mode = cleaned_mode
+        updated = True
+    if req.household_url_id is not None:
+        device.household_url_id = req.household_url_id
+        updated = True
 
     if not updated:
         raise HTTPException(status_code=400, detail="No editable fields were provided")
 
     device.updated_at = now_utc()
     db.commit()
-    return {"status": "updated", "device": _serialize_device(device)}
+    return {"status": "updated", "device": _serialize_device(device, db)}
 
 
 @app.delete("/api/v1/account/devices/{registration_code}")
@@ -885,7 +956,66 @@ def account_device_action(
     device.pending_action_requested_at = timestamp
     device.updated_at = timestamp
     db.commit()
-    return {"status": "queued", "action": normalized_action, "device": _serialize_device(device)}
+    return {"status": "queued", "action": normalized_action, "device": _serialize_device(device, db)}
+
+
+@app.post("/api/v1/account/devices/{registration_code}/temp-url")
+def account_set_device_temp_url(
+    registration_code: str,
+    req: DeviceTempUrlSetRequest,
+    request: Request,
+    db: Session = Depends(get_db_session),
+) -> dict:
+    user = _current_user(request, db)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    device = db.get(DeviceRegistration, registration_code.strip().upper())
+    if device is None or device.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    # Save current URL mode so we can revert later (only if not already in temp mode)
+    if not device.temp_url:
+        device.temp_url_revert_mode = device.url_mode
+        device.temp_url_revert_household_url_id = device.household_url_id
+
+    device.temp_url = req.temp_url
+    device.temp_url_set_at = now_utc()
+    device.updated_at = now_utc()
+    db.commit()
+    return {"status": "temp_url_set", "device": _serialize_device(device, db)}
+
+
+@app.delete("/api/v1/account/devices/{registration_code}/temp-url")
+def account_clear_device_temp_url(
+    registration_code: str,
+    request: Request,
+    db: Session = Depends(get_db_session),
+) -> dict:
+    user = _current_user(request, db)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    device = db.get(DeviceRegistration, registration_code.strip().upper())
+    if device is None or device.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    if not device.temp_url:
+        raise HTTPException(status_code=400, detail="No temp URL is currently set")
+
+    # Revert to the saved URL mode
+    if device.temp_url_revert_mode is not None:
+        device.url_mode = device.temp_url_revert_mode
+    if device.temp_url_revert_household_url_id is not None:
+        device.household_url_id = device.temp_url_revert_household_url_id
+
+    device.temp_url = None
+    device.temp_url_set_at = None
+    device.temp_url_revert_mode = None
+    device.temp_url_revert_household_url_id = None
+    device.updated_at = now_utc()
+    db.commit()
+    return {"status": "temp_url_cleared", "device": _serialize_device(device, db)}
 
 
 @app.post("/api/v1/admin/device-tokens")
@@ -983,7 +1113,7 @@ def device_bootstrap(req: DeviceBootstrapRequest, db: Session = Depends(get_db_s
         "registration_code": device.registration_code,
         "device_token": issue_device_token(device.device_id, DEVICE_TOKEN_EXPIRES_MINUTES),
         "claimed": device.user_id is not None,
-        "configured": bool(device.target_url),
+        "configured": bool(device.target_url or device.url_mode == "household_url"),
     }
 
 
@@ -1006,14 +1136,17 @@ def resolve_device(
         device.client_version = req.client_version.strip()
     db.commit()
 
-    if not device.target_url:
+    from app.households import resolve_device_url
+
+    resolved_url = resolve_device_url(device, db)
+    if not resolved_url:
         return {"status": "pending", "message": "Registration code is waiting to be claimed by an account"}
 
     return {
         "status": "configured",
         "device_id": req.device_id,
         "registration_code": device.registration_code,
-        "configured_url": device.target_url,
+        "configured_url": resolved_url,
         "pending_action": device.pending_action,
         "timezone": _effective_device_timezone(device, db),
     }
@@ -1053,14 +1186,17 @@ def get_device_config(
     if device is None:
         return {"status": "unbound"}
 
-    if not device.target_url:
+    from app.households import resolve_device_url
+
+    resolved_url = resolve_device_url(device, db)
+    if not resolved_url:
         return {"status": "pending", "registration_code": device.registration_code}
 
     return {
         "status": "configured",
         "device_id": device_id,
         "registration_code": device.registration_code,
-        "configured_url": device.target_url,
+        "configured_url": resolved_url,
         "pending_action": device.pending_action,
         "timezone": _effective_device_timezone(device, db),
     }

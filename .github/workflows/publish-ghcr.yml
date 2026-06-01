@@ -105,3 +105,30 @@ jobs:
           push: true
           tags: ${{ steps.prep.outputs.tags }}
           provenance: false
+
+      - name: Wait for image to be available on GHCR
+        shell: bash
+        run: |
+          set -euo pipefail
+          TIMEOUT=300
+          INTERVAL=10
+
+          while IFS= read -r TAG; do
+            [[ -z "$TAG" ]] && continue
+            echo "Waiting for: $TAG"
+            ELAPSED=0
+            until docker manifest inspect "$TAG" > /dev/null 2>&1; do
+              if [[ $ELAPSED -ge $TIMEOUT ]]; then
+                echo "ERROR: Timed out after ${TIMEOUT}s waiting for $TAG" >&2
+                exit 1
+              fi
+              echo "  Not yet available, retrying in ${INTERVAL}s (${ELAPSED}s elapsed)..."
+              sleep $INTERVAL
+              ELAPSED=$(( ELAPSED + INTERVAL ))
+            done
+            echo "  Manifest confirmed. Pausing 30s for registry propagation..."
+            sleep 30
+            echo "  Pulling image to verify it can be fetched..."
+            docker pull "$TAG"
+            echo "  ✓ Successfully pulled: $TAG"
+          done <<< "${{ steps.prep.outputs.tags }}"

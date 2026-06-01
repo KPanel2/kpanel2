@@ -1,0 +1,39 @@
+<div class="tab-content">
+  <div class="manager-header">
+    <h3>Floors</h3>
+    <button class="btn-primary" (click)="creating = !creating">
+      {{ creating ? 'Cancel' : '+ Add Floor' }}
+    </button>
+  </div>
+
+  <div class="create-row" *ngIf="creating">
+    <input type="text" [(ngModel)]="newName" placeholder="Floor name (e.g. Ground Floor)" />
+    <input type="number" [(ngModel)]="newOrder" placeholder="Sort order" style="width:100px" />
+    <button class="btn-primary" (click)="create()" [disabled]="!newName.trim()">Add</button>
+  </div>
+
+  <p *ngIf="error" class="error-msg">{{ error }}</p>
+
+  <div class="empty-state" *ngIf="floors.length === 0 && !creating">No floors yet.</div>
+
+  <div class="item-list">
+    <div class="item-row" *ngFor="let floor of floors">
+      <ng-container *ngIf="editingFloor?.id !== floor.id">
+        <span class="item-name">{{ floor.name }}</span>
+        <span class="item-meta">#{{ floor.sort_order }}</span>
+        <div class="item-actions">
+          <button class="btn-ghost" (click)="startEdit(floor)">Edit</button>
+          <button class="btn-danger-ghost" (click)="delete(floor)">Delete</button>
+        </div>
+      </ng-container>
+      <ng-container *ngIf="editingFloor?.id === floor.id">
+        <input type="text" [(ngModel)]="editName" />
+        <input type="number" [(ngModel)]="editOrder" style="width:80px" />
+        <div class="item-actions">
+          <button class="btn-primary" (click)="saveEdit()">Save</button>
+          <button class="btn-ghost" (click)="editingFloor = null">Cancel</button>
+        </div>
+      </ng-container>
+    </div>
+  </div>
+</div>
