@@ -1,0 +1,62 @@
+<div class="section">
+
+  <div class="section-header">
+    <h2>Households</h2>
+    <button class="btn-primary" (click)="startCreate()" *ngIf="!creating">
+      + New Household
+    </button>
+  </div>
+
+  <!-- Create form -->
+  <div class="card create-form" *ngIf="creating">
+    <h3>New Household</h3>
+    <form (ngSubmit)="create()">
+      <label class="field">
+        <span>Name</span>
+        <input type="text" [(ngModel)]="newName" name="newName"
+               placeholder="My Home" required />
+      </label>
+      <label class="field">
+        <span>Timezone</span>
+        <app-timezone-select [(ngModel)]="newTimezone" name="newTimezone"
+                              placeholder="Default (user timezone)">
+        </app-timezone-select>
+      </label>
+      <p *ngIf="error" class="error-msg">{{ error }}</p>
+      <div class="btn-row">
+        <button type="submit" class="btn-primary" [disabled]="saving">
+          {{ saving ? 'Creating…' : 'Create' }}
+        </button>
+        <button type="button" class="btn-ghost" (click)="cancelCreate()">Cancel</button>
+      </div>
+    </form>
+  </div>
+
+  <div *ngIf="loading" class="loading-text">Loading households…</div>
+
+  <div *ngIf="!loading && households.length === 0 && !creating" class="empty-state">
+    No households yet. Create one to organise your devices into floors, rooms, and URLs.
+  </div>
+
+  <!-- Household cards -->
+  <div class="household-grid" *ngIf="!loading && households.length > 0">
+    <div class="card household-card" *ngFor="let h of households" (click)="openHousehold(h)">
+      <div class="hh-name">{{ h.name }}</div>
+      <div class="hh-meta">
+        <span class="pill">{{ h.timezone || 'User TZ' }}</span>
+        <span class="pill">{{ (h.members ? h.members.length : 0) }} member{{ (h.members ? h.members.length : 0) !== 1 ? 's' : '' }}</span>
+        <span class="pill">{{ (h.rooms ? h.rooms.length : 0) }} room{{ (h.rooms ? h.rooms.length : 0) !== 1 ? 's' : '' }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Household detail panel -->
+  <app-household-detail
+    *ngIf="selectedHousehold"
+    [household]="selectedHousehold"
+    [devices]="devices"
+    (closed)="closeDetail()"
+    (devicesChanged)="householdsChanged.emit()">
+  </app-household-detail>
+
+</div>

@@ -1,0 +1,75 @@
+<div class="tab-content">
+  <div class="manager-header">
+    <h3>Household URLs</h3>
+    <button class="btn-primary" (click)="creating = !creating">
+      {{ creating ? 'Cancel' : '+ Add URL' }}
+    </button>
+  </div>
+
+  <p class="help-text">
+    Use placeholders in URL templates:
+    <code>&#123;device&#125;</code>, <code>&#123;room&#125;</code>, <code>&#123;floor&#125;</code>, <code>&#123;household&#125;</code>
+  </p>
+
+  <div class="create-block card" *ngIf="creating">
+    <label class="field">
+      <span>Friendly Name</span>
+      <input type="text" [(ngModel)]="newFriendlyName" placeholder="e.g. main-display" />
+    </label>
+    <label class="field">
+      <span>URL Template</span>
+      <input type="text" [(ngModel)]="newTemplate"
+             placeholder="https://example.com/{room}/{device}" />
+    </label>
+    <label class="field checkbox-field">
+      <input type="checkbox" [(ngModel)]="newIsDefault" />
+      <span>Set as default</span>
+    </label>
+    <p *ngIf="error" class="error-msg">{{ error }}</p>
+    <button class="btn-primary" (click)="create()"
+            [disabled]="!newFriendlyName.trim() || !newTemplate.trim()">
+      Add URL
+    </button>
+  </div>
+
+  <div class="empty-state" *ngIf="urls.length === 0 && !creating">No URLs yet.</div>
+
+  <div class="item-list">
+    <div class="item-row url-row" *ngFor="let url of urls">
+      <ng-container *ngIf="editingUrl?.id !== url.id">
+        <div class="url-info">
+          <span class="item-name">
+            {{ url.friendly_name }}
+            <span class="pill accent" *ngIf="url.is_default">default</span>
+          </span>
+          <code class="url-template">{{ url.url_template }}</code>
+        </div>
+        <div class="item-actions">
+          <button class="btn-ghost" *ngIf="!url.is_default" (click)="setDefault(url)">
+            Set Default
+          </button>
+          <button class="btn-ghost" (click)="startEdit(url)">Edit</button>
+          <button class="btn-danger-ghost" (click)="delete(url)">Delete</button>
+        </div>
+      </ng-container>
+      <ng-container *ngIf="editingUrl?.id === url.id">
+        <div class="url-edit">
+          <label class="field">
+            <span>Friendly Name</span>
+            <input type="text" [(ngModel)]="editFriendlyName" />
+          </label>
+          <label class="field">
+            <span>URL Template</span>
+            <input type="text" [(ngModel)]="editTemplate" />
+          </label>
+        </div>
+        <div class="item-actions">
+          <button class="btn-primary" (click)="saveEdit()">Save</button>
+          <button class="btn-ghost" (click)="editingUrl = null">Cancel</button>
+        </div>
+      </ng-container>
+    </div>
+  </div>
+
+  <p *ngIf="error && !creating" class="error-msg">{{ error }}</p>
+</div>

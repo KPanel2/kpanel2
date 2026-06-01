@@ -1,0 +1,47 @@
+<div class="tab-content">
+  <div class="manager-header">
+    <h3>Rooms</h3>
+    <button class="btn-primary" (click)="creating = !creating">
+      {{ creating ? 'Cancel' : '+ Add Room' }}
+    </button>
+  </div>
+
+  <div class="create-row" *ngIf="creating">
+    <input type="text" [(ngModel)]="newName" placeholder="Room name (e.g. Living Room)" />
+    <select [(ngModel)]="newFloorId">
+      <option [ngValue]="null">— No floor —</option>
+      <option *ngFor="let f of floors" [ngValue]="f.id">{{ f.name }}</option>
+    </select>
+    <input type="number" [(ngModel)]="newOrder" placeholder="Order" style="width:80px" />
+    <button class="btn-primary" (click)="create()" [disabled]="!newName.trim()">Add</button>
+  </div>
+
+  <p *ngIf="error" class="error-msg">{{ error }}</p>
+
+  <div class="empty-state" *ngIf="rooms.length === 0 && !creating">No rooms yet.</div>
+
+  <div class="item-list">
+    <div class="item-row" *ngFor="let room of rooms">
+      <ng-container *ngIf="editingRoom?.id !== room.id">
+        <span class="item-name">{{ room.name }}</span>
+        <span class="item-meta">{{ floorName(room.floor_id) }}</span>
+        <div class="item-actions">
+          <button class="btn-ghost" (click)="startEdit(room)">Edit</button>
+          <button class="btn-danger-ghost" (click)="delete(room)">Delete</button>
+        </div>
+      </ng-container>
+      <ng-container *ngIf="editingRoom?.id === room.id">
+        <input type="text" [(ngModel)]="editName" />
+        <select [(ngModel)]="editFloorId">
+          <option [ngValue]="null">— No floor —</option>
+          <option *ngFor="let f of floors" [ngValue]="f.id">{{ f.name }}</option>
+        </select>
+        <input type="number" [(ngModel)]="editOrder" style="width:80px" />
+        <div class="item-actions">
+          <button class="btn-primary" (click)="saveEdit()">Save</button>
+          <button class="btn-ghost" (click)="editingRoom = null">Cancel</button>
+        </div>
+      </ng-container>
+    </div>
+  </div>
+</div>

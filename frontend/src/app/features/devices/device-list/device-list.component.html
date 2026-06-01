@@ -1,0 +1,18 @@
+<div class="section-header">
+  <h2>Devices</h2>
+</div>
+
+<div *ngIf="loading" class="loading-text">Loading devices…</div>
+
+<div *ngIf="!loading && devices.length === 0" class="empty-state">
+  No devices yet. Claim your first device above.
+</div>
+
+<div *ngIf="!loading && devices.length > 0" class="device-grid">
+  <app-device-card
+    *ngFor="let device of devices"
+    [device]="device"
+    [households]="households"
+    (changed)="devicesChanged.emit()">
+  </app-device-card>
+</div>

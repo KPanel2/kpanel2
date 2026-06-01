@@ -1,0 +1,147 @@
+<div class="device-card card">
+
+  <!-- ── View mode ─────────────────────────────────────────────────────── -->
+  <ng-container *ngIf="!editing">
+    <div class="card-header">
+      <h3>{{ device.display_name || device.registration_code }}</h3>
+      <div class="header-actions">
+        <button class="btn-ghost" (click)="startEdit()">Edit</button>
+        <button class="btn-danger-ghost" (click)="delete()">Delete</button>
+      </div>
+    </div>
+
+    <div class="device-info">
+      <div class="info-row">
+        <span class="label">Code</span>
+        <code class="mono">{{ device.registration_code }}</code>
+      </div>
+      <div class="info-row" *ngIf="device.device_id">
+        <span class="label">Device ID</span>
+        <code class="mono">{{ device.device_id }}</code>
+      </div>
+      <div class="info-row">
+        <span class="label">URL</span>
+        <span class="value url-value">{{ device.resolved_url || '—' }}</span>
+      </div>
+      <div class="info-row" *ngIf="device.has_temp_url">
+        <span class="label">Temp URL</span>
+        <span class="pill accent">{{ device.temp_url }}</span>
+      </div>
+      <div class="info-row" *ngIf="device.timezone">
+        <span class="label">Timezone</span>
+        <span class="value">{{ device.timezone }}</span>
+      </div>
+      <div class="info-row" *ngIf="deviceHousehold">
+        <span class="label">Household</span>
+        <span class="value">{{ deviceHousehold.name }}</span>
+      </div>
+      <div class="info-row" *ngIf="deviceRoom">
+        <span class="label">Room</span>
+        <span class="value">{{ deviceRoom.name }}</span>
+      </div>
+      <div class="info-row" *ngIf="device.last_seen">
+        <span class="label">Last seen</span>
+        <span class="value">{{ device.last_seen | date:'medium' }}</span>
+      </div>
+    </div>
+
+    <div class="device-actions">
+      <button class="btn-secondary" (click)="sendAction('reboot')">Reboot</button>
+      <button class="btn-secondary" (click)="sendAction('update')">Update</button>
+      <button class="btn-secondary" (click)="showTempUrl = !showTempUrl">
+        {{ showTempUrl ? 'Cancel Temp URL' : (device.has_temp_url ? 'Change Temp URL' : 'Set Temp URL') }}
+      </button>
+      <button *ngIf="device.has_temp_url" class="btn-danger-ghost" (click)="clearTempUrl()">
+        Clear Temp URL
+      </button>
+    </div>
+
+    <!-- Temp URL input -->
+    <div *ngIf="showTempUrl" class="temp-url-form">
+      <input
+        type="url"
+        [(ngModel)]="tempUrlInput"
+        placeholder="https://temp.example.com"
+        class="url-input" />
+      <button class="btn-primary" (click)="setTempUrl()" [disabled]="saving || !tempUrlInput.trim()">
+        {{ saving ? 'Setting…' : 'Set' }}
+      </button>
+    </div>
+
+    <p *ngIf="success" class="success-msg">{{ success }}</p>
+    <p *ngIf="error" class="error-msg">{{ error }}</p>
+  </ng-container>
+
+  <!-- ── Edit mode ─────────────────────────────────────────────────────── -->
+  <ng-container *ngIf="editing">
+    <div class="card-header">
+      <h3>Edit Device</h3>
+    </div>
+
+    <form class="form" (ngSubmit)="saveEdit()">
+
+      <label class="field">
+        <span>Display Name</span>
+        <input type="text" [(ngModel)]="displayName" name="displayName"
+               placeholder="My Device" />
+      </label>
+
+      <label class="field">
+        <span>Timezone</span>
+        <app-timezone-select [(ngModel)]="timezone" name="timezone"
+                              placeholder="Inherit from household/user">
+        </app-timezone-select>
+      </label>
+
+      <label class="field">
+        <span>Household</span>
+        <select [(ngModel)]="selectedHouseholdId" name="selectedHouseholdId" (ngModelChange)="onHouseholdChange()">
+          <option [ngValue]="null">— No household —</option>
+          <option *ngFor="let h of households" [ngValue]="h.id">{{ h.name }}</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>Room</span>
+        <select [(ngModel)]="roomId" name="roomId">
+          <option [ngValue]="null">— No room —</option>
+          <option *ngFor="let r of roomsForHousehold" [ngValue]="r.id">{{ r.name }}</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>URL mode</span>
+        <select [(ngModel)]="urlMode" name="urlMode">
+          <option value="custom">Custom URL</option>
+          <option value="household_url">Household URL</option>
+        </select>
+      </label>
+
+      <label class="field" *ngIf="urlMode === 'custom'">
+        <span>Custom URL</span>
+        <input type="url" [(ngModel)]="targetUrl" name="targetUrl"
+               placeholder="https://example.com" />
+      </label>
+
+      <label class="field" *ngIf="urlMode === 'household_url'">
+        <span>Household URL</span>
+        <select [(ngModel)]="householdUrlId" name="householdUrlId">
+          <option [ngValue]="null">— Select URL —</option>
+          <option *ngFor="let u of allHouseholdUrls" [ngValue]="u.id">
+            {{ u.householdName }} / {{ u.friendly_name }}
+          </option>
+        </select>
+      </label>
+
+      <p *ngIf="error" class="error-msg">{{ error }}</p>
+
+      <div class="btn-row">
+        <button type="submit" class="btn-primary" [disabled]="saving">
+          {{ saving ? 'Saving…' : 'Save' }}
+        </button>
+        <button type="button" class="btn-ghost" (click)="cancelEdit()">Cancel</button>
+      </div>
+    </form>
+  </ng-container>
+
+</div>

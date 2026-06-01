@@ -1,0 +1,18 @@
+<div class="card claim-card">
+  <div class="card-header">
+    <h2>Claim Device</h2>
+  </div>
+  <form class="claim-form" (ngSubmit)="claim()">
+    <input
+      type="text"
+      [(ngModel)]="code"
+      name="code"
+      placeholder="Registration code (e.g. ABCD-1234)"
+      class="code-input" />
+    <button type="submit" class="btn-primary" [disabled]="loading || !code.trim()">
+      {{ loading ? 'Claiming…' : 'Claim' }}
+    </button>
+  </form>
+  <p *ngIf="error" class="error-msg">{{ error }}</p>
+  <p *ngIf="success" class="success-msg">{{ success }}</p>
+</div>

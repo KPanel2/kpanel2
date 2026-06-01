@@ -85,6 +85,7 @@ deploy_rules:
       types:
         - published
       exclude_prerelease: true
+      registry_package: true
 
 workflow_checks:
   require:

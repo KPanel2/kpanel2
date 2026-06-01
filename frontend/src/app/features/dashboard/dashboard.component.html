@@ -1,0 +1,60 @@
+<div class="dashboard-layout">
+
+  <!-- ── Sidebar ────────────────────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <img class="sidebar-logo" src="logo.webp" alt="kPanel" />
+      <span class="logo-text">kPanel</span>
+    </div>
+    <nav class="sidebar-nav">
+      <button
+        class="nav-item"
+        [class.active]="activeTab === 'devices'"
+        (click)="setTab('devices')">
+        Devices
+      </button>
+      <button
+        class="nav-item"
+        [class.active]="activeTab === 'households'"
+        (click)="setTab('households')">
+        Households
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      <span class="user-name">{{ user?.display_name }}</span>
+      <button class="btn-ghost" (click)="logout()">Sign Out</button>
+    </div>
+  </aside>
+
+  <!-- ── Main content ───────────────────────────────────────────────────── -->
+  <main class="main-content">
+
+    <!-- Profile card always visible at top -->
+    <app-profile-card
+      *ngIf="user"
+      [user]="user">
+    </app-profile-card>
+
+    <!-- ── Devices tab ──────────────────────────────────────────────────── -->
+    <ng-container *ngIf="activeTab === 'devices'">
+      <app-claim-device (claimed)="onDeviceClaimed()"></app-claim-device>
+      <app-device-list
+        [devices]="devices"
+        [households]="households"
+        [loading]="loadingDevices"
+        (devicesChanged)="onDevicesChanged()">
+      </app-device-list>
+    </ng-container>
+
+    <!-- ── Households tab ───────────────────────────────────────────────── -->
+    <ng-container *ngIf="activeTab === 'households'">
+      <app-household-list
+        [households]="households"
+        [devices]="devices"
+        [loading]="loadingHouseholds"
+        (householdsChanged)="onHouseholdsChanged()">
+      </app-household-list>
+    </ng-container>
+
+  </main>
+</div>
