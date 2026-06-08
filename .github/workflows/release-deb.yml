@@ -43,7 +43,7 @@ jobs:
         run: |
           set -euo pipefail
           cd client-system
-          ./scripts/build_deb.sh "${{ steps.version.outputs.version }}"
+          ./scripts/build_deb.sh "${{ steps.version.outputs.version }}" prod
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
@@ -68,9 +68,29 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p external-repo/pool/kumpeserver
+          mkdir -p external-repo/pool/stable/kumpeserver
           cp "client-system/build/${{ steps.version.outputs.deb_name }}" \
-            "external-repo/pool/kumpeserver/${{ steps.version.outputs.deb_name }}"
+            "external-repo/pool/stable/kumpeserver/${{ steps.version.outputs.deb_name }}"
+
+      - name: Update package manifest (latest.json)
+        shell: bash
+        run: |
+          set -euo pipefail
+          MANIFEST="external-repo/kpanel-client-latest.json"
+          VERSION="${{ steps.version.outputs.version }}"
+          DEB_NAME="${{ steps.version.outputs.deb_name }}"
+          PACKAGE_URL="http://debian.kumpeapps.com/pool/stable/kumpeserver/${DEB_NAME}"
+
+          if [[ ! -f "$MANIFEST" ]]; then
+            printf '{"stable":{"version":null,"url":null},"stage":{"version":null,"url":null},"dev":{"version":null,"url":null}}\n' \
+              > "$MANIFEST"
+          fi
+
+          jq \
+            --arg version "$VERSION" \
+            --arg url "$PACKAGE_URL" \
+            '.stable = {"version": $version, "url": $url}' \
+            "$MANIFEST" > "${MANIFEST}.tmp" && mv "${MANIFEST}.tmp" "$MANIFEST"
 
       - name: Commit and push external pool update
         shell: bash
@@ -79,12 +99,12 @@ jobs:
           cd external-repo
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "pool/kumpeserver/${{ steps.version.outputs.deb_name }}"
+          git add "pool/stable/kumpeserver/${{ steps.version.outputs.deb_name }}" "kpanel-client-latest.json"
 
           if git diff --cached --quiet; then
             echo "No external repository changes to commit"
             exit 0
           fi
 
-          git commit -m "Add kpanel-client ${{ steps.version.outputs.version }}"
+          git commit -m "Stable: kpanel-client ${{ steps.version.outputs.version }}"
           git push origin master

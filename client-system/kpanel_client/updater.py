@@ -8,15 +8,40 @@ from kpanel_client.config import ClientConfig
 from kpanel_client.device_state import load_or_create_state
 
 
-def _run_update_install(package_url: str | None = None) -> tuple[bool, str]:
+def _install_exact_apt_version(target_version: str) -> tuple[bool, str]:
+    subprocess.run(["apt-get", "update"], check=True)
+    subprocess.run(
+        ["apt-get", "install", "-y", "--allow-downgrades", f"kpanel-client={target_version}"],
+        check=True,
+    )
+    return True, f"Package install completed via apt: {target_version}"
+
+
+def _install_direct_package(package_url: str) -> tuple[bool, str]:
+    deb_path = "/tmp/kpanel-client-update.deb"
+    urlretrieve(package_url, deb_path)
+    subprocess.run(["dpkg", "-i", deb_path], check=True)
+    subprocess.run(["apt-get", "-f", "-y", "install"], check=True)
+    return True, f"Installed update from package URL: {package_url}"
+
+
+def _run_update_install(target_version: str | None = None, package_url: str | None = None) -> tuple[bool, str]:
+    apt_error: Exception | None = None
+
+    if target_version:
+        try:
+            return _install_exact_apt_version(target_version)
+        except Exception as exc:
+            apt_error = exc
+            print(f"Updater: exact apt install failed for {target_version}: {exc}")
+            if not package_url:
+                return False, str(exc)
+
     try:
         if package_url:
-            deb_path = "/tmp/kpanel-client-update.deb"
-            urlretrieve(package_url, deb_path)
-            subprocess.run(["dpkg", "-i", deb_path], check=True)
-            subprocess.run(["apt-get", "-f", "-y", "install"], check=True)
-            return True, f"Installed update from release artifact: {package_url}"
-
+            return _install_direct_package(package_url)
+        if apt_error is not None:
+            return False, str(apt_error)
         subprocess.run(["apt-get", "update"], check=True)
         subprocess.run(["apt-get", "install", "-y", "--only-upgrade", "kpanel-client"], check=True)
         return True, "Package upgrade completed via apt"
@@ -98,7 +123,7 @@ def run() -> None:
         target_version=update.get("target_version"),
         message="Update install started",
     )
-    ok, message = _run_update_install(update.get("package_url"))
+    ok, message = _run_update_install(update.get("target_version"), update.get("package_url"))
     api.report_update_event(
         cfg.device_id,
         state.registration_code,

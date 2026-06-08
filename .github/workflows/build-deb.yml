@@ -1,0 +1,145 @@
+name: Build Debian Package (Dev / Stage)
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build-deb:
+    runs-on: ubuntu-latest
+    # PRs from forks do not have access to repository secrets.
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
+
+    steps:
+      - name: Check out source repository
+        uses: actions/checkout@v4
+
+      - name: Install Debian packaging tools
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y dpkg-dev
+
+      - name: Derive package version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="$(grep '^Version:' client-system/debian/control | awk '{print $2}')"
+          SHA="$(git rev-parse --short=7 HEAD)"
+
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            CHANNEL="dev"
+          else
+            CHANNEL="stage"
+          fi
+
+          VERSION="${BASE}~${CHANNEL}.${SHA}"
+          DEB_NAME="kpanel-client_${VERSION}_all.deb"
+
+          echo "base=$BASE"       >> "$GITHUB_OUTPUT"
+          echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA"         >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "deb_name=$DEB_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Build Debian package
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd client-system
+          ./scripts/build_deb.sh \
+            "${{ steps.version.outputs.base }}" \
+            "${{ steps.version.outputs.channel }}" \
+            "${{ steps.version.outputs.sha }}"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.version.outputs.deb_name }}
+          path: client-system/build/${{ steps.version.outputs.deb_name }}
+          retention-days: 30
+
+      - name: Derive manifest slot and repo URL
+        id: publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          CHANNEL="${{ steps.version.outputs.channel }}"
+          DEB_NAME="${{ steps.version.outputs.deb_name }}"
+          POOL_PATH="pool/${CHANNEL}/kumpeserver"
+          PACKAGE_URL="http://debian.kumpeapps.com/${POOL_PATH}/${DEB_NAME}"
+
+          echo "manifest_key=$CHANNEL" >> "$GITHUB_OUTPUT"
+          echo "pool_path=$POOL_PATH" >> "$GITHUB_OUTPUT"
+          echo "package_url=$PACKAGE_URL" >> "$GITHUB_OUTPUT"
+
+      # ── Dev and Stage channels: publish to external package repository ─────
+      - name: Check out external package repository
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
+        uses: actions/checkout@v4
+        with:
+          repository: KumpeWeb/repo
+          ref: master
+          path: external-repo
+          token: ${{ secrets.KUMPEWEB_REPO_TOKEN }}
+
+      - name: Copy package into external pool
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "external-repo/${{ steps.publish.outputs.pool_path }}"
+          cp "client-system/build/${{ steps.version.outputs.deb_name }}" \
+            "external-repo/${{ steps.publish.outputs.pool_path }}/${{ steps.version.outputs.deb_name }}"
+
+      - name: Update package manifest
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          MANIFEST="external-repo/kpanel-client-latest.json"
+          VERSION="${{ steps.version.outputs.version }}"
+          PACKAGE_URL="${{ steps.publish.outputs.package_url }}"
+          MANIFEST_KEY="${{ steps.publish.outputs.manifest_key }}"
+
+          if [[ ! -f "$MANIFEST" ]]; then
+            printf '{"stable":{"version":null,"url":null},"stage":{"version":null,"url":null},"dev":{"version":null,"url":null}}\n' \
+              > "$MANIFEST"
+          fi
+
+          jq \
+            --arg key "$MANIFEST_KEY" \
+            --arg version "$VERSION" \
+            --arg url "$PACKAGE_URL" \
+            '.[$key] = {"version": $version, "url": $url}' \
+            "$MANIFEST" > "${MANIFEST}.tmp" && mv "${MANIFEST}.tmp" "$MANIFEST"
+
+      - name: Commit and push external repository changes
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd external-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            "${{ steps.publish.outputs.pool_path }}/${{ steps.version.outputs.deb_name }}" \
+            "kpanel-client-latest.json"
+
+          if git diff --cached --quiet; then
+            echo "No external repository changes to commit"
+            exit 0
+          fi
+
+          git commit -m "${{ steps.publish.outputs.manifest_key }}: kpanel-client ${{ steps.version.outputs.version }}"
+          git push origin master
