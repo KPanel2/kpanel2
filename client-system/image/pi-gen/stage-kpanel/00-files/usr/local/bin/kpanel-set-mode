@@ -93,5 +93,18 @@ fi
 echo "Set KPANEL_ENV_MODE=${MODE} in $CONF"
 echo "Cleared KPANEL_API_BASE_URL_OVERRIDE to follow mode target."
 echo "Configured apt suite '${APT_SUITE}' in $SOURCE_LIST_PATH"
-echo "Rebooting..."
-systemctl reboot
+
+if [[ "${2:-}" == "--reboot" || "${KPANEL_SET_MODE_REBOOT:-}" == "1" ]]; then
+  echo "Rebooting..."
+  systemctl reboot
+elif [[ -t 0 ]]; then
+  read -r -p "Reboot now to apply the new mode? [y/N] " _REBOOT_REPLY
+  if [[ "$_REBOOT_REPLY" =~ ^[Yy]$ ]]; then
+    echo "Rebooting..."
+    systemctl reboot
+  else
+    echo "Reboot or restart graphical session to relaunch kiosk with new target."
+  fi
+else
+  echo "Reboot or restart graphical session to relaunch kiosk with new target."
+fi

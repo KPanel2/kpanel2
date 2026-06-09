@@ -37,7 +37,7 @@ cp "$ROOT_DIR/requirements.txt" "$PKG_ROOT/usr/share/$PKG_NAME/"
 mkdir -p "$PKG_ROOT/usr/share/$PKG_NAME/systemd"
 cp "$ROOT_DIR/systemd/kpanel-client.service" "$PKG_ROOT/usr/share/$PKG_NAME/systemd/"
 mkdir -p "$PKG_ROOT/usr/share/$PKG_NAME/bin"
-for _script in kpanel-client-launcher.sh kpanel-set-mode kpanel-show-mode kpanel-version kpanel-install-version kpanel-prod kpanel-stage kpanel-dev; do
+for _script in kpanel-client-launcher.sh kpanel-configure-apt-repo kpanel-set-mode kpanel-show-mode kpanel-version kpanel-install-version kpanel-prod kpanel-stage kpanel-dev; do
 	cp "$ROOT_DIR/image/pi-gen/stage-kpanel/00-files/usr/local/bin/$_script" \
 		"$PKG_ROOT/usr/share/$PKG_NAME/bin/$_script"
 done

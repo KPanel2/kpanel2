@@ -1,3 +1,4 @@
+import logging
 import os
 import threading
 import time as _time
@@ -14,10 +15,12 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app.auth import require_admin_api_key, require_device_access
 from app.db import Base, engine, get_db_session
-from app.models import DeviceRegistration, Household, HouseholdUrl, Registration, Room, User, UserIdentity
+from app.models import DeviceRegistration, Household, HouseholdMember, HouseholdUrl, Registration, Room, User, UserIdentity
 from app.providers import ProviderConfig, init_oauth_clients, oauth
 from app.security import issue_device_token
 from app.session_auth import now_utc, to_iso
+
+logger = logging.getLogger(__name__)
 
 
 FRONTEND_BASE_URL = os.getenv("KPANEL_FRONTEND_BASE_URL", "http://localhost:8080").rstrip("/")
@@ -930,7 +933,6 @@ def account_claim_device(
         device.url_mode = "custom"
     elif req.household_id is not None:
         # Verify the user belongs to the requested household.
-        from app.models import HouseholdMember, HouseholdUrl
         membership = (
             db.query(HouseholdMember)
             .filter(
@@ -941,7 +943,7 @@ def account_claim_device(
         )
         if membership is None:
             raise HTTPException(status_code=403, detail="You are not a member of the specified household")
-        default_hurl = (
+        household_hurl = (
             db.query(HouseholdUrl)
             .filter(
                 HouseholdUrl.household_id == req.household_id,
@@ -949,9 +951,20 @@ def account_claim_device(
             )
             .first()
         )
-        if default_hurl:
-            device.url_mode = "household_url"
-            device.household_url_id = default_hurl.id
+        if household_hurl is None:
+            household_hurl = (
+                db.query(HouseholdUrl)
+                .filter(HouseholdUrl.household_id == req.household_id)
+                .order_by(HouseholdUrl.id)
+                .first()
+            )
+        if household_hurl is None:
+            raise HTTPException(
+                status_code=400,
+                detail="The specified household has no URLs configured. Add a household URL before claiming a device.",
+            )
+        device.url_mode = "household_url"
+        device.household_url_id = household_hurl.id
 
     device.claimed_at = timestamp
     device.updated_at = timestamp
@@ -1278,9 +1291,18 @@ def record_update_event(
     device = db.get(DeviceRegistration, registration_code)
     if device is None or device.device_id != device_id:
         raise HTTPException(status_code=404, detail="Device not found")
-    print(
-        f"Update event: device={device_id} action={req.action} status={req.status} "
-        f"from={req.from_version} to={req.target_version} channel={req.channel} msg={req.message}"
+    logger.info(
+        "Device update event recorded",
+        extra={
+            "device_id": device_id,
+            "registration_code": registration_code,
+            "action": req.action,
+            "status": req.status,
+            "from_version": req.from_version,
+            "target_version": req.target_version,
+            "channel": req.channel,
+            "message": req.message,
+        },
     )
     return {"status": "recorded"}
 

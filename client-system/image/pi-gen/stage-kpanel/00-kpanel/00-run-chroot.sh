@@ -4,7 +4,10 @@ if [ ! -f /usr/local/src/kpanel-client.deb ]; then
 fi
 
 # Install package and dependencies.
+export KPANEL_SKIP_APT_REPO=1
 dpkg -i /usr/local/src/kpanel-client.deb || apt-get -f -y install
+/usr/local/bin/kpanel-configure-apt-repo || true
+unset KPANEL_SKIP_APT_REPO
 
 # Package postinst enables the system service; for desktop kiosk flow we prefer autostart.
 systemctl disable kpanel-client.service || true
