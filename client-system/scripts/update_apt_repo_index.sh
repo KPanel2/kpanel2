@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Regenerate apt repository metadata under dists/ with web-relative pool paths.
 #
-# Must be run from a checkout of the KumpeApps apt repo (e.g. external-repo in CI).
+# Run from the apt repo root on debian.kumpeapps.com after pool/ updates land,
+# e.g. ./scripts/update-apt-repo-index.sh .
+#
 # dpkg-scanpackages emits absolute Filename values when invoked with an absolute
 # binary-dir, which breaks apt downloads (404 under debian.kumpeapps.com).
 set -euo pipefail
