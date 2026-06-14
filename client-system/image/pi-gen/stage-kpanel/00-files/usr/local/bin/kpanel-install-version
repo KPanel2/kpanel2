@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
+  echo "Run as root: sudo kpanel-install-version <version|url> [channel]"
+  exit 1
+fi
+
+VERSION_ARG="${1:-}"
+if [[ -z "$VERSION_ARG" ]]; then
+  echo "Usage: kpanel-install-version <version|url> [channel]"
+  echo ""
+  echo "  version  Version number to install (e.g. 0.1.3)"
+  echo "  channel  prod | stage | dev  (default: current API mode)"
+  echo ""
+  echo "  If <version> is a full https:// URL it is downloaded and installed directly."
+  echo ""
+  echo "  A KPANEL_PACKAGE_BASE_URL may be set in /etc/default/kpanel-client to"
+  echo "  enable version-based installs without passing a full URL."
+  exit 1
+fi
+
+CONF_FILE=/etc/default/kpanel-client
+MODE_PIN_FILE=/etc/kpanel/mode-set-by-user
+MODE_PIN_VERSION_FILE=/etc/kpanel/mode-set-by-user.version
+
+if [[ -f "$CONF_FILE" ]]; then
+  # shellcheck disable=SC1090
+  source "$CONF_FILE"
+fi
+
+# Determine active mode as default channel
+MODE="${KPANEL_ENV_MODE:-prod}"
+if [[ -f "$MODE_PIN_FILE" && -f "$MODE_PIN_VERSION_FILE" && \
+      "$(tr -d '[:space:]' < "$MODE_PIN_VERSION_FILE" 2>/dev/null || true)" == "2" ]]; then
+  pinned_mode="$(tr -d '[:space:]' < "$MODE_PIN_FILE" 2>/dev/null || true)"
+  case "$pinned_mode" in
+    prod|stage|dev) MODE="$pinned_mode" ;;
+  esac
+fi
+
+_download_and_install() {
+  local url="$1"
+  local deb_path="/tmp/kpanel-client-install.deb"
+  echo "Downloading $url ..."
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL -o "$deb_path" "$url"
+  else
+    wget -qO "$deb_path" "$url"
+  fi
+  dpkg -i "$deb_path"
+  apt-get -f -y install
+  rm -f "$deb_path"
+}
+
+_install_via_apt() {
+  local pkg_version="$1"
+  echo "Installing kpanel-client=${pkg_version} via apt ..."
+  apt-get update -q
+  apt-get install -y --allow-downgrades "kpanel-client=${pkg_version}"
+}
+
+# Direct URL install
+if [[ "$VERSION_ARG" == http://* || "$VERSION_ARG" == https://* ]]; then
+  _download_and_install "$VERSION_ARG"
+  echo "Done. Run 'kpanel-version' to confirm."
+  exit 0
+fi
+
+# Version + channel
+CHANNEL="${2:-$MODE}"
+VERSION="${VERSION_ARG#v}"
+
+if [[ "$VERSION" == *~* ]]; then
+  PKG_VERSION="$VERSION"
+else
+  case "$CHANNEL" in
+    stage) PKG_VERSION="${VERSION}~stage" ;;
+    dev)   PKG_VERSION="${VERSION}~dev" ;;
+    prod)  PKG_VERSION="${VERSION}" ;;
+    *)
+      echo "Unknown channel '${CHANNEL}'. Use: prod | stage | dev" >&2
+      exit 1
+      ;;
+  esac
+fi
+
+if [[ -n "${KPANEL_PACKAGE_BASE_URL:-}" ]]; then
+  DEB_URL="${KPANEL_PACKAGE_BASE_URL%/}/kpanel-client_${PKG_VERSION}_all.deb"
+  _download_and_install "$DEB_URL"
+  echo "Done. Run 'kpanel-version' to confirm."
+else
+  _install_via_apt "$PKG_VERSION"
+  echo "Done. Run 'kpanel-version' to confirm."
+fi

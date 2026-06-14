@@ -5,8 +5,18 @@ if [ ! -f /usr/local/src/kpanel-client.deb ]; then
   exit 1
 fi
 
-# Install package and dependencies.
-dpkg -i /usr/local/src/kpanel-client.deb || apt-get -f -y install
+# Install package and dependencies. Defer apt repo setup so apt-get -f does not
+# try to upgrade kpanel-client from the remote KumpeApps repository mid-install.
+export KPANEL_SKIP_APT_REPO=1
+# Restrict apt-get -f to base OS sources so a previously configured KumpeApps
+# repo cannot pull kpanel-client from broken or newer remote metadata.
+apt_fix_opts=(
+	-o Dir::Etc::sourcelist=/dev/null
+	-o Dir::Etc::sourceparts=-
+)
+dpkg -i /usr/local/src/kpanel-client.deb || apt-get -f -y install "${apt_fix_opts[@]}"
+/usr/local/bin/kpanel-configure-apt-repo || true
+unset KPANEL_SKIP_APT_REPO
 
 # Package postinst enables the system service; for desktop kiosk flow we prefer autostart.
 systemctl disable kpanel-client.service || true

@@ -1,4 +1,7 @@
+import logging
 import os
+import threading
+import time as _time
 from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
@@ -12,10 +15,12 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app.auth import require_admin_api_key, require_device_access
 from app.db import Base, engine, get_db_session
-from app.models import DeviceRegistration, Household, HouseholdUrl, Registration, Room, User, UserIdentity
+from app.models import DeviceRegistration, Household, HouseholdMember, HouseholdUrl, Registration, Room, User, UserIdentity
 from app.providers import ProviderConfig, init_oauth_clients, oauth
 from app.security import issue_device_token
 from app.session_auth import now_utc, to_iso
+
+logger = logging.getLogger(__name__)
 
 
 FRONTEND_BASE_URL = os.getenv("KPANEL_FRONTEND_BASE_URL", "http://localhost:8080").rstrip("/")
@@ -23,6 +28,72 @@ REQUIRE_HTTPS = os.getenv("KPANEL_REQUIRE_HTTPS", "false").lower() == "true"
 SESSION_SECRET = os.getenv("KPANEL_SESSION_SECRET", "change-session-secret")
 SESSION_HTTPS_ONLY = os.getenv("KPANEL_SESSION_HTTPS_ONLY", "false").lower() == "true"
 DEVICE_TOKEN_EXPIRES_MINUTES = int(os.getenv("KPANEL_DEVICE_TOKEN_EXPIRES_MINUTES", str(60 * 24 * 30)))
+KPANEL_CLIENT_LATEST_VERSION = os.getenv("KPANEL_CLIENT_LATEST_VERSION", "")
+KPANEL_CLIENT_PACKAGE_URL = os.getenv("KPANEL_CLIENT_PACKAGE_URL", "")
+# URL to a JSON manifest file: {"stable":{"version":"x","url":"..."},"stage":{...},"dev":{...}}
+# When set, the backend fetches this (cached 5 min) instead of using the static env vars above.
+KPANEL_CLIENT_MANIFEST_URL = os.getenv("KPANEL_CLIENT_MANIFEST_URL", "")
+
+_MANIFEST_TTL = 300  # seconds
+_manifest_lock = threading.Lock()
+_manifest_cache: dict = {"data": None, "fetched_at": 0.0}
+
+
+def _fetch_update_manifest() -> dict | None:
+    """Fetch and cache the client update manifest from KPANEL_CLIENT_MANIFEST_URL."""
+    if not KPANEL_CLIENT_MANIFEST_URL:
+        return None
+    now = _time.monotonic()
+    with _manifest_lock:
+        if _manifest_cache["data"] is not None and now - _manifest_cache["fetched_at"] < _MANIFEST_TTL:
+            return _manifest_cache["data"]
+    try:
+        import httpx as _httpx
+        resp = _httpx.get(KPANEL_CLIENT_MANIFEST_URL, timeout=5, follow_redirects=True)
+        resp.raise_for_status()
+        data = resp.json()
+        with _manifest_lock:
+            _manifest_cache["data"] = data
+            _manifest_cache["fetched_at"] = _time.monotonic()
+        return data
+    except Exception as exc:
+        print(f"Warning: failed to fetch update manifest: {exc}")
+        with _manifest_lock:
+            return _manifest_cache["data"]  # return stale data if available
+
+
+def _detect_channel(version: str) -> str:
+    if "~stage" in version:
+        return "stage"
+    if "~dev" in version:
+        return "dev"
+    return "stable"
+
+
+def _get_latest_for_channel(current_version: str) -> tuple[str, str | None]:
+    """Return (latest_version, package_url) for the channel inferred from current_version."""
+    channel = _detect_channel(current_version)
+    manifest = _fetch_update_manifest()
+    if manifest:
+        entry = manifest.get(channel) or {}
+        return entry.get("version") or "", entry.get("url")
+    return KPANEL_CLIENT_LATEST_VERSION, KPANEL_CLIENT_PACKAGE_URL or None
+
+
+def _build_update_policy(current_version: str) -> dict | None:
+    channel = _detect_channel(current_version)
+    latest_version, package_url = _get_latest_for_channel(current_version)
+    if not latest_version:
+        return None
+    outdated = bool(current_version) and current_version != latest_version
+    return {
+        "outdated": outdated,
+        "update_now": outdated,
+        "channel": channel,
+        "current_version": current_version or None,
+        "target_version": latest_version,
+        "package_url": package_url,
+    }
 
 DEFAULT_CORS_ORIGINS = [
     "http://localhost:8080",
@@ -88,6 +159,7 @@ class ClaimDeviceRequest(BaseModel):
     registration_code: str
     target_url: HttpUrl | None = None
     display_name: str | None = None
+    household_id: int | None = None
 
     @field_validator("target_url", mode="before")
     @classmethod
@@ -118,6 +190,16 @@ class DeviceActionAckRequest(BaseModel):
     registration_code: str
     action: str
     status: str = "completed"
+
+
+class UpdateEventRequest(BaseModel):
+    registration_code: str
+    action: str
+    status: str
+    channel: str | None = None
+    from_version: str | None = None
+    target_version: str | None = None
+    message: str = ""
 
 
 class DeviceUpdateRequest(BaseModel):
@@ -255,6 +337,7 @@ def _serialize_device(device: DeviceRegistration, db: Session | None = None) -> 
         "temp_url_revert_household_url_id": device.temp_url_revert_household_url_id,
         "temp_url_set_at": to_iso(device.temp_url_set_at),
         "resolved_url": resolve_device_url(device, db) if db is not None else None,
+        "latest_client_version": _get_latest_for_channel(device.client_version or "")[0] or None,
     }
 
 
@@ -843,12 +926,52 @@ def account_claim_device(
     timestamp = now_utc()
     device.user_id = user.id
     device.display_name = (req.display_name or device.display_name or req.registration_code).strip()
+
     if req.target_url is not None:
+        # Explicit custom URL always wins.
         device.target_url = str(req.target_url)
+        device.url_mode = "custom"
+    elif req.household_id is not None:
+        # Verify the user belongs to the requested household.
+        membership = (
+            db.query(HouseholdMember)
+            .filter(
+                HouseholdMember.household_id == req.household_id,
+                HouseholdMember.user_id == user.id,
+            )
+            .first()
+        )
+        if membership is None:
+            raise HTTPException(status_code=403, detail="You are not a member of the specified household")
+        household_hurl = (
+            db.query(HouseholdUrl)
+            .filter(
+                HouseholdUrl.household_id == req.household_id,
+                HouseholdUrl.is_default == True,  # noqa: E712
+            )
+            .first()
+        )
+        if household_hurl is None:
+            household_hurl = (
+                db.query(HouseholdUrl)
+                .filter(HouseholdUrl.household_id == req.household_id)
+                .order_by(HouseholdUrl.id)
+                .first()
+            )
+        if household_hurl is None:
+            raise HTTPException(
+                status_code=400,
+                detail="The specified household has no URLs configured. Add a household URL before claiming a device.",
+            )
+        device.url_mode = "household_url"
+        device.household_url_id = household_hurl.id
+
     device.claimed_at = timestamp
     device.updated_at = timestamp
     db.commit()
-    return {"status": "configured" if device.target_url else "claimed", "device": _serialize_device(device, db)}
+    from app.households import resolve_device_url
+    configured = bool(resolve_device_url(device, db))
+    return {"status": "configured" if configured else "claimed", "device": _serialize_device(device, db)}
 
 
 @app.patch("/api/v1/account/devices/{registration_code}")
@@ -1142,6 +1265,9 @@ def resolve_device(
     if not resolved_url:
         return {"status": "pending", "message": "Registration code is waiting to be claimed by an account"}
 
+    current_version = device.client_version or ""
+    update_policy = _build_update_policy(current_version)
+
     return {
         "status": "configured",
         "device_id": req.device_id,
@@ -1149,7 +1275,38 @@ def resolve_device(
         "configured_url": resolved_url,
         "pending_action": device.pending_action,
         "timezone": _effective_device_timezone(device, db),
+        "update": update_policy,
     }
+
+
+@app.post("/api/v1/devices/{device_id}/update-events")
+def record_update_event(
+    device_id: str,
+    req: UpdateEventRequest,
+    db: Session = Depends(get_db_session),
+    x_device_token: str | None = Header(default=None),
+) -> dict:
+    require_device_access(device_id, x_device_token)
+    registration_code = req.registration_code.strip().upper()
+    device = db.get(DeviceRegistration, registration_code)
+    if device is None or device.device_id != device_id:
+        raise HTTPException(status_code=404, detail="Device not found")
+    logger.info(
+        "Device update event recorded",
+        extra={
+            "device_id": device_id,
+            "registration_code": registration_code,
+            "action": req.action,
+            "status": req.status,
+            "from_version": req.from_version,
+            "target_version": req.target_version,
+            "channel": req.channel,
+            "message": req.message,
+        },
+    )
+    return {"status": "recorded"}
+
+
 def ack_device_action(
     device_id: str,
     req: DeviceActionAckRequest,

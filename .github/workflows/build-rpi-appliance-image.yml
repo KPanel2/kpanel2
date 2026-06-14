@@ -204,6 +204,11 @@ jobs:
             if [[ "$attempt" -lt "$attempts" ]]; then
               echo "pi-gen build failed; cleaning work/deploy and retrying"
               sudo rm -rf /tmp/pi-gen/work /tmp/pi-gen/deploy
+              container_id="$(sudo docker ps -aq --filter 'name=^/pigen_work$')"
+              if [[ -n "$container_id" ]]; then
+                echo "Removing stale pi-gen container pigen_work"
+                sudo docker rm -v pigen_work
+              fi
             fi
           done
 

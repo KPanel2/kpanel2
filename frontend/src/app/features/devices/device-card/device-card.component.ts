@@ -69,6 +69,13 @@ export class DeviceCardComponent implements OnChanges {
     return this.households.find(h => (h.rooms ?? []).some(r => r.id === this.device.room_id));
   }
 
+  get clientChannel(): string {
+    const v = this.device?.client_version ?? '';
+    if (v.includes('~stage')) return 'stage';
+    if (v.includes('~dev')) return 'dev';
+    return v ? 'prod' : '';
+  }
+
   onHouseholdChange(): void {
     if (this.roomId !== null && this.selectedHouseholdId !== null) {
       const roomBelongs = (this.households.find(h => h.id === this.selectedHouseholdId)?.rooms ?? [])

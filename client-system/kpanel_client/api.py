@@ -18,6 +18,7 @@ class ResolveResult:
     configured_url: str | None = None
     pending_action: str | None = None
     timezone: str | None = None
+    update: dict | None = None
     error: str = ""
 
 
@@ -110,6 +111,7 @@ class KPanelApiClient:
             configured_url=data.get("configured_url"),
             pending_action=data.get("pending_action"),
             timezone=data.get("timezone"),
+            update=data.get("update"),
         )
 
     def get_device_config(self, device_id: str) -> ResolveResult:
@@ -161,3 +163,34 @@ class KPanelApiClient:
             return False
 
         return resp.status_code == 200
+
+    def report_update_event(
+        self,
+        device_id: str,
+        registration_code: str,
+        action: str,
+        status: str,
+        channel: str | None = None,
+        from_version: str | None = None,
+        target_version: str | None = None,
+        message: str = "",
+    ) -> bool:
+        payload = {
+            "registration_code": registration_code,
+            "action": action,
+            "status": status,
+            "channel": channel,
+            "from_version": from_version,
+            "target_version": target_version,
+            "message": message,
+        }
+        try:
+            resp = requests.post(
+                f"{self.base_url}/api/v1/devices/{device_id}/update-events",
+                json=payload,
+                headers=self._headers(),
+                timeout=10,
+            )
+            return resp.status_code == 200
+        except requests.RequestException:
+            return False

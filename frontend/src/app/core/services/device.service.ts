@@ -22,10 +22,11 @@ export class DeviceService {
     return this.api.get<{ devices: Device[] }>('/api/v1/account/devices').pipe(map(r => r.devices));
   }
 
-  claimDevice(registrationCode: string): Observable<Device> {
-    return this.api.post<{ device: Device }>('/api/v1/account/devices/claim', {
-      registration_code: registrationCode,
-    }).pipe(map(r => r.device));
+  claimDevice(registrationCode: string, householdId?: number, targetUrl?: string): Observable<Device> {
+    const payload: Record<string, unknown> = { registration_code: registrationCode };
+    if (householdId != null) payload['household_id'] = householdId;
+    if (targetUrl) payload['target_url'] = targetUrl;
+    return this.api.post<{ device: Device }>('/api/v1/account/devices/claim', payload).pipe(map(r => r.device));
   }
 
   updateDevice(code: string, payload: DeviceUpdatePayload): Observable<Device> {

@@ -43,6 +43,17 @@
         <span class="label">Last seen</span>
         <span class="value">{{ device.last_seen | date:'medium' }}</span>
       </div>
+      <div class="info-row" *ngIf="device.client_version">
+        <span class="label">Version</span>
+        <span class="value">
+          {{ device.client_version }}
+          <span *ngIf="clientChannel && clientChannel !== 'prod'" class="pill">{{ clientChannel }}</span>
+          <span *ngIf="device.latest_client_version && device.client_version !== device.latest_client_version"
+                class="pill">Update available: {{ device.latest_client_version }}</span>
+          <span *ngIf="device.latest_client_version && device.client_version === device.latest_client_version"
+                class="pill accent">Up to date</span>
+        </span>
+      </div>
     </div>
 
     <div class="device-actions">

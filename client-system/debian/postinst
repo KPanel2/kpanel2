@@ -7,7 +7,6 @@ SERVICE_NAME=kpanel-client.service
 LAUNCHER_NAME=kpanel-client-launcher.sh
 MODE_HELPER_NAME=kpanel-set-mode
 DEFAULTS_DIR=/etc/default
-
 resolve_runtime_owner() {
 	local service_user=""
 
@@ -35,14 +34,25 @@ export PYTHONPATH="$INSTALL_DIR${PYTHONPATH:+:$PYTHONPATH}"
 
 cp /usr/share/kpanel-client/systemd/$SERVICE_NAME /etc/systemd/system/$SERVICE_NAME
 cp /usr/share/kpanel-client/bin/$LAUNCHER_NAME /usr/local/bin/$LAUNCHER_NAME
-cp /usr/share/kpanel-client/bin/$MODE_HELPER_NAME /usr/local/bin/$MODE_HELPER_NAME
-chmod 755 /usr/local/bin/$LAUNCHER_NAME /usr/local/bin/$MODE_HELPER_NAME
+chmod 755 /usr/local/bin/$LAUNCHER_NAME
+for _helper in kpanel-configure-apt-repo kpanel-set-mode kpanel-show-mode kpanel-version kpanel-install-version kpanel-prod kpanel-stage kpanel-dev; do
+	if [[ -f "/usr/share/kpanel-client/bin/$_helper" ]]; then
+		cp "/usr/share/kpanel-client/bin/$_helper" "/usr/local/bin/$_helper"
+		chmod 755 "/usr/local/bin/$_helper"
+	fi
+done
 mkdir -p "$STATE_DIR"
 RUNTIME_OWNER="$(resolve_runtime_owner)"
 chown -R "$RUNTIME_OWNER:$RUNTIME_OWNER" "$INSTALL_DIR" "$STATE_DIR"
 mkdir -p "$DEFAULTS_DIR"
 if [ ! -f "$DEFAULTS_DIR/kpanel-client" ]; then
 	cp /usr/share/kpanel-client/defaults/kpanel-client "$DEFAULTS_DIR/kpanel-client"
+fi
+
+if [[ "${KPANEL_SKIP_APT_REPO:-}" != "1" ]]; then
+	if ! /usr/local/bin/kpanel-configure-apt-repo; then
+		echo "Warning: failed to configure the KumpeApps apt repository; apt-based client updates may be unavailable until the repo is added manually." >&2
+	fi
 fi
 
 # Grant the runtime user permission to set the system timezone without a password.

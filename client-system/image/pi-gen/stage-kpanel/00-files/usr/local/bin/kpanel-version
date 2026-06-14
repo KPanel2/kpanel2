@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CONF_FILE=/etc/default/kpanel-client
+MODE_PIN_FILE=/etc/kpanel/mode-set-by-user
+MODE_PIN_VERSION_FILE=/etc/kpanel/mode-set-by-user.version
+APT_SOURCE_LIST_DEFAULT=/etc/apt/sources.list.d/KumpeApps.list
+
+if [[ -f "$CONF_FILE" ]]; then
+  # shellcheck disable=SC1090
+  source "$CONF_FILE"
+fi
+
+REPO_URL="${KPANEL_APT_REPO_URL:-http://debian.kumpeapps.com}"
+KEYRING_PATH="${KPANEL_APT_KEYRING_PATH:-/usr/share/keyrings/KumpeApps.gpg}"
+SOURCE_LIST_PATH="${KPANEL_APT_SOURCE_LIST_PATH:-$APT_SOURCE_LIST_DEFAULT}"
+
+# Installed package version
+VERSION="$(dpkg-query --showformat='${Version}' --show kpanel-client 2>/dev/null || echo "not installed")"
+
+# Detect channel from version suffix
+CHANNEL="prod"
+if [[ "$VERSION" == *~stage* ]]; then
+  CHANNEL="stage"
+elif [[ "$VERSION" == *~dev* ]]; then
+  CHANNEL="dev"
+fi
+
+# Active API mode
+MODE="${KPANEL_ENV_MODE:-prod}"
+if [[ -f "$MODE_PIN_FILE" && -f "$MODE_PIN_VERSION_FILE" && \
+      "$(tr -d '[:space:]' < "$MODE_PIN_VERSION_FILE" 2>/dev/null || true)" == "2" ]]; then
+  pinned_mode="$(tr -d '[:space:]' < "$MODE_PIN_FILE" 2>/dev/null || true)"
+  case "$pinned_mode" in
+    prod|stage|dev) MODE="$pinned_mode" ;;
+  esac
+fi
+
+case "$MODE" in
+  prod)  MODE_URL="${KPANEL_API_BASE_URL_PROD:-https://kpanel.kumpe.app}" ;;
+  stage) MODE_URL="${KPANEL_API_BASE_URL_STAGE:-https://kpanel.stage.kumpe.app}" ;;
+  dev)   MODE_URL="${KPANEL_API_BASE_URL_DEV:-https://kpanel.dev.kumpe.app}" ;;
+  *)     MODE_URL="unknown" ;;
+esac
+
+APT_SUITE="unknown"
+if [[ -f "$SOURCE_LIST_PATH" ]]; then
+  APT_SUITE_LINE="$(grep -E "^deb\s+\[.*\]\s+${REPO_URL//\//\/}\s+" "$SOURCE_LIST_PATH" 2>/dev/null | head -n 1 || true)"
+  if [[ -z "$APT_SUITE_LINE" ]]; then
+    APT_SUITE_LINE="$(grep -E "^deb\s+${REPO_URL//\//\/}\s+" "$SOURCE_LIST_PATH" 2>/dev/null | head -n 1 || true)"
+  fi
+  if [[ -n "$APT_SUITE_LINE" ]]; then
+    APT_SUITE="$(awk '{print $(NF-1)}' <<< "$APT_SUITE_LINE")"
+  fi
+fi
+
+echo "kpanel-client:  $VERSION"
+echo "Channel:        $CHANNEL"
+echo "API mode:       $MODE  ($MODE_URL)"
+echo "APT suite:      $APT_SUITE  ($REPO_URL)"
+echo "APT source:     $SOURCE_LIST_PATH"
+echo "APT keyring:    $KEYRING_PATH"

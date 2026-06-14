@@ -9,6 +9,25 @@
       name="code"
       placeholder="Registration code (e.g. ABCD-1234)"
       class="code-input" />
+
+    <select
+      *ngIf="households.length > 0"
+      [(ngModel)]="selectedHouseholdId"
+      name="household"
+      (ngModelChange)="onHouseholdChange()"
+      class="household-select">
+      <option [ngValue]="null">— No household —</option>
+      <option *ngFor="let h of households" [ngValue]="h.id">{{ h.name }}</option>
+    </select>
+
+    <input
+      *ngIf="selectedHouseholdId != null"
+      type="text"
+      [(ngModel)]="targetUrl"
+      name="targetUrl"
+      [placeholder]="defaultHouseholdUrl ? defaultHouseholdUrl.url_template : 'Device URL (optional)'"
+      class="url-input" />
+
     <button type="submit" class="btn-primary" [disabled]="loading || !code.trim()">
       {{ loading ? 'Claiming…' : 'Claim' }}
     </button>

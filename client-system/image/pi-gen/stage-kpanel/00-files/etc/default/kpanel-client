@@ -10,3 +10,15 @@ KPANEL_API_BASE_URL_DEV=https://kpanel.dev.kumpe.app
 # Optional explicit override. If set, this value wins regardless of mode.
 # Example: KPANEL_API_BASE_URL_OVERRIDE=http://192.168.1.50:8000
 KPANEL_API_BASE_URL_OVERRIDE=
+
+# Base URL for downloading versioned kpanel-client .deb packages.
+# Used by kpanel-install-version when a version number (not a full URL) is given.
+# Example: KPANEL_PACKAGE_BASE_URL=https://releases.kumpe.app/kpanel-client
+KPANEL_PACKAGE_BASE_URL=
+
+# APT repository configuration used by mode switching helpers.
+# kpanel-set-mode maps prod->stable, stage->stage, dev->dev and rewrites
+# KPANEL_APT_SOURCE_LIST_PATH to point at the matching suite.
+KPANEL_APT_REPO_URL=http://debian.kumpeapps.com
+KPANEL_APT_KEYRING_PATH=/usr/share/keyrings/KumpeApps.gpg
+KPANEL_APT_SOURCE_LIST_PATH=/etc/apt/sources.list.d/KumpeApps.list
