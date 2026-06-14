@@ -5,7 +5,11 @@ fi
 
 # Install package and dependencies.
 export KPANEL_SKIP_APT_REPO=1
-dpkg -i /usr/local/src/kpanel-client.deb || apt-get -f -y install
+apt_fix_opts=(
+	-o Dir::Etc::sourcelist=/dev/null
+	-o Dir::Etc::sourceparts=-
+)
+dpkg -i /usr/local/src/kpanel-client.deb || apt-get -f -y install "${apt_fix_opts[@]}"
 /usr/local/bin/kpanel-configure-apt-repo || true
 unset KPANEL_SKIP_APT_REPO
 

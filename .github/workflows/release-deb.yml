@@ -19,7 +19,7 @@ jobs:
       - name: Install Debian packaging tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y dpkg-dev
+          sudo apt-get install -y dpkg-dev apt-utils
 
       - name: Derive package version from release tag
         id: version
@@ -92,6 +92,16 @@ jobs:
             '.stable = {"version": $version, "url": $url}' \
             "$MANIFEST" > "${MANIFEST}.tmp" && mv "${MANIFEST}.tmp" "$MANIFEST"
 
+      - name: Regenerate apt repository indexes
+        shell: bash
+        env:
+          APT_REPO_GPG_KEY_ID: ${{ secrets.APT_REPO_GPG_KEY_ID }}
+          APT_REPO_GPG_PRIVATE_KEY: ${{ secrets.APT_REPO_GPG_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          chmod +x client-system/scripts/update_apt_repo_index.sh
+          client-system/scripts/update_apt_repo_index.sh external-repo
+
       - name: Commit and push external pool update
         shell: bash
         run: |
@@ -99,7 +109,7 @@ jobs:
           cd external-repo
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "pool/stable/kumpeserver/${{ steps.version.outputs.deb_name }}" "kpanel-client-latest.json"
+          git add "pool/stable/kumpeserver/${{ steps.version.outputs.deb_name }}" "kpanel-client-latest.json" dists/
 
           if git diff --cached --quiet; then
             echo "No external repository changes to commit"
