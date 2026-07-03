@@ -161,7 +161,9 @@ patch_pi_gen_for_local_arch() {
 
 configure_pi_gen() {
 	cp -r "$STAGE_DIR" "$PI_GEN_DIR/"
+	cp -r "$ROOT_DIR/image/pi-gen/export-image/"* "$PI_GEN_DIR/export-image/"
 	chmod 755 "$PI_GEN_DIR/stage-kpanel/prerun.sh" "$PI_GEN_DIR/stage-kpanel/00-run-chroot.sh"
+	chmod 755 "$PI_GEN_DIR/export-image/01z-kpanel-hold/00-run.sh"
 	cat >"$PI_GEN_DIR/config" <<EOF
 IMG_NAME='${IMAGE_NAME}'
 RELEASE='bookworm'

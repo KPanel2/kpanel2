@@ -36,6 +36,75 @@ fi
 echo "$MODE" > "$MODE_PIN_FILE"
 echo "2" > "$MODE_PIN_VERSION_FILE"
 
+# Determine the API URL for the target mode (respect any custom overrides in conf).
+# shellcheck disable=SC1090
+source "$CONF"
+
+# Keep apt channel aligned with environment mode.
+REPO_URL="${KPANEL_APT_REPO_URL:-http://debian.kumpeapps.com}"
+KEYRING_PATH="${KPANEL_APT_KEYRING_PATH:-/usr/share/keyrings/KumpeApps.gpg}"
+SOURCE_LIST_PATH="${KPANEL_APT_SOURCE_LIST_PATH:-/etc/apt/sources.list.d/KumpeApps.list}"
+
+case "$MODE" in
+  prod)  APT_SUITE="stable" ;;
+  stage) APT_SUITE="stage" ;;
+  dev)   APT_SUITE="dev" ;;
+esac
+
+if [[ -f "$KEYRING_PATH" ]]; then
+  printf 'deb [signed-by=%s] %s %s main\n' "$KEYRING_PATH" "$REPO_URL" "$APT_SUITE" > "$SOURCE_LIST_PATH"
+  chmod 644 "$SOURCE_LIST_PATH"
+  if ! apt-get update -q; then
+    echo "Warning: apt update failed after switching to suite '${APT_SUITE}'."
+  fi
+else
+  echo "Warning: keyring '$KEYRING_PATH' not found; skipped apt suite switch to '${APT_SUITE}'."
+fi
+
+case "$MODE" in
+  prod)  MODE_API_URL="${KPANEL_API_BASE_URL_PROD:-https://kpanel.kumpe.app}" ;;
+  stage) MODE_API_URL="${KPANEL_API_BASE_URL_STAGE:-https://kpanel.stage.kumpe.app}" ;;
+  dev)   MODE_API_URL="${KPANEL_API_BASE_URL_DEV:-https://kpanel.dev.kumpe.app}" ;;
+esac
+
+# Offer to switch the installed client build to match the new mode.
+UPDATER_BIN="/opt/kpanel-client/.venv/bin/python"
+if [[ -f "$UPDATER_BIN" ]]; then
+  echo ""
+  read -r -p "Also switch to the ${MODE} client build now? [y/N] " _REPLY
+  if [[ "$_REPLY" =~ ^[Yy]$ ]]; then
+    echo "Running updater against ${MODE_API_URL} ..."
+    cd /opt/kpanel-client && \
+      KPANEL_API_BASE_URL_OVERRIDE="$MODE_API_URL" \
+      PYTHONPATH="/opt/kpanel-client${PYTHONPATH:+:$PYTHONPATH}" \
+      "$UPDATER_BIN" -m kpanel_client.updater \
+      && echo "Client build switch complete." \
+      || echo "Warning: client build switch failed. The updater will retry on next boot."
+  fi
+fi
+
+# If the headless systemd service was re-enabled (e.g. by a package reinstall),
+# disable it now so the startx autologin path owns the display on next boot.
+if systemctl is-enabled kpanel-client.service >/dev/null 2>&1; then
+  systemctl disable kpanel-client.service --now 2>/dev/null || true
+  echo "Disabled kpanel-client.service (startx autologin will manage the session)."
+fi
+
 echo "Set KPANEL_ENV_MODE=${MODE} in $CONF"
 echo "Cleared KPANEL_API_BASE_URL_OVERRIDE to follow mode target."
-echo "Reboot or restart graphical session to relaunch kiosk with new target."
+echo "Configured apt suite '${APT_SUITE}' in $SOURCE_LIST_PATH"
+
+if [[ "${2:-}" == "--reboot" || "${KPANEL_SET_MODE_REBOOT:-}" == "1" ]]; then
+  echo "Rebooting..."
+  systemctl reboot
+elif [[ -t 0 ]]; then
+  read -r -p "Reboot now to apply the new mode? [y/N] " _REBOOT_REPLY
+  if [[ "$_REBOOT_REPLY" =~ ^[Yy]$ ]]; then
+    echo "Rebooting..."
+    systemctl reboot
+  else
+    echo "Reboot or restart graphical session to relaunch kiosk with new target."
+  fi
+else
+  echo "Reboot or restart graphical session to relaunch kiosk with new target."
+fi

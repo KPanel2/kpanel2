@@ -51,7 +51,7 @@ def _run_pending_action(api: KPanelApiClient, cfg: ClientConfig, registration_co
             status="started",
         )
         result = subprocess.run(
-            ["sh", "-lc", "apt-get update && apt-get install -y --only-upgrade kpanel-client"],
+            ["sh", "-lc", "apt-get update && apt-get install -y --only-upgrade --allow-change-held-packages kpanel-client"],
             check=False,
         )
         status = "completed" if result.returncode == 0 else "failed"

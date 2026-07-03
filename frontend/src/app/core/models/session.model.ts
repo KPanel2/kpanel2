@@ -25,6 +25,8 @@ export interface Device {
   temp_url_set_at: string | null;
   resolved_url: string | null;
   timezone: string | null;
+  client_version: string | null;
+  latest_client_version: string | null;
   registered_at: string;
   last_seen: string | null;
 }
