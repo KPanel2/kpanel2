@@ -31,8 +31,11 @@ done
 
 echo "$KPANEL_USER:$KPANEL_PASSWORD" | chpasswd
 
+export KPANEL_SKIP_APT_REPO=1
 dpkg -i /tmp/kpanel-client.deb || apt-get -f -y install
 dpkg -i /tmp/kpanel-client.deb
+/usr/local/bin/kpanel-configure-apt-repo || true
+unset KPANEL_SKIP_APT_REPO
 
 install -d -m 755 "$LIGHTDM_DIR" "$AUTOSTART_DIR" "$XDG_AUTOSTART_DIR" "$XSESSIONS_DIR" "$SSHD_DROPIN_DIR" "$NM_CONF_DIR" "$NM_CONNECTIONS_DIR" "$SSH_SERVICE_OVERRIDE_DIR"
 

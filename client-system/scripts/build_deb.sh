@@ -2,7 +2,19 @@
 set -euo pipefail
 
 VERSION_RAW="${1:-0.1.0}"
+CHANNEL="${2:-prod}"   # prod | stage | dev
+COMMIT_SHA="${3:-}"   # optional short SHA to append to dev/stage versions
+
 VERSION="${VERSION_RAW#v}"
+case "$CHANNEL" in
+  stage) VERSION="${VERSION}~stage${COMMIT_SHA:+.$COMMIT_SHA}" ;;
+  dev)   VERSION="${VERSION}~dev${COMMIT_SHA:+.$COMMIT_SHA}" ;;
+  prod)  : ;;
+  *)
+    echo "Unknown channel '${CHANNEL}'. Use: prod | stage | dev" >&2
+    exit 1
+    ;;
+esac
 PKG_NAME="kpanel-client"
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_DIR="$ROOT_DIR/build"
@@ -25,10 +37,10 @@ cp "$ROOT_DIR/requirements.txt" "$PKG_ROOT/usr/share/$PKG_NAME/"
 mkdir -p "$PKG_ROOT/usr/share/$PKG_NAME/systemd"
 cp "$ROOT_DIR/systemd/kpanel-client.service" "$PKG_ROOT/usr/share/$PKG_NAME/systemd/"
 mkdir -p "$PKG_ROOT/usr/share/$PKG_NAME/bin"
-cp "$ROOT_DIR/image/pi-gen/stage-kpanel/00-files/usr/local/bin/kpanel-client-launcher.sh" \
-	"$PKG_ROOT/usr/share/$PKG_NAME/bin/"
-cp "$ROOT_DIR/image/pi-gen/stage-kpanel/00-files/usr/local/bin/kpanel-set-mode" \
-	"$PKG_ROOT/usr/share/$PKG_NAME/bin/"
+for _script in kpanel-client-launcher.sh kpanel-configure-apt-repo kpanel-set-mode kpanel-show-mode kpanel-version kpanel-install-version kpanel-prod kpanel-stage kpanel-dev; do
+	cp "$ROOT_DIR/image/pi-gen/stage-kpanel/00-files/usr/local/bin/$_script" \
+		"$PKG_ROOT/usr/share/$PKG_NAME/bin/$_script"
+done
 mkdir -p "$PKG_ROOT/usr/share/$PKG_NAME/defaults"
 cp "$ROOT_DIR/image/pi-gen/stage-kpanel/00-files/etc/default/kpanel-client" \
 	"$PKG_ROOT/usr/share/$PKG_NAME/defaults/"
