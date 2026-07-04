@@ -7,6 +7,7 @@ import { HouseholdService } from '../../core/services/household.service';
 import { ProfileCardComponent } from './profile-card/profile-card.component';
 import { DeviceListComponent } from '../devices/device-list/device-list.component';
 import { ClaimDeviceComponent } from '../devices/claim-device/claim-device.component';
+import { AuthDebugPanelComponent } from '../auth/auth-debug-panel/auth-debug-panel.component';
 import { HouseholdListComponent } from '../households/household-list/household-list.component';
 import { User, Device } from '../../core/models/session.model';
 import { Household } from '../../core/models/household.model';
@@ -21,6 +22,7 @@ import { Household } from '../../core/models/household.model';
     DeviceListComponent,
     ClaimDeviceComponent,
     HouseholdListComponent,
+    AuthDebugPanelComponent,
   ],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.scss'],

@@ -60,7 +60,6 @@ export class ProfileCardComponent implements OnChanges {
     this.error = '';
     this.auth.updateProfile(this.displayName.trim(), this.timezone).subscribe({
       next: () => {
-        this.auth.loadSession().subscribe();
         this.saving = false;
         this.editing = false;
         this.success = 'Profile updated';

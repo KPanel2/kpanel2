@@ -1,10 +1,12 @@
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
 from app.db import get_db_session
+from app.kumpe_auth import require_user_with_permission
+from app.kumpe_permissions import Permissions
 from app.models import (
     DeviceRegistration,
     Floor,
@@ -177,18 +179,6 @@ def _serialize_household(household: Household, db: Session) -> dict:
 # ---------- Helpers ----------
 
 
-def _get_current_user(request: Request, db: Session) -> User:
-    from app.main import SESSION_USER_ID
-
-    user_id = request.session.get(SESSION_USER_ID)
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Authentication required")
-    user = db.get(User, user_id)
-    if user is None:
-        raise HTTPException(status_code=401, detail="Authentication required")
-    return user
-
-
 def _get_member_household(household_id: int, user_id: int, db: Session) -> Household:
     membership = (
         db.query(HouseholdMember)
@@ -266,10 +256,10 @@ def resolve_device_url(device: DeviceRegistration, db: Session) -> str | None:
 @router.post("")
 def create_household(
     req: HouseholdCreateRequest,
-    request: Request,
+    auth_user: tuple = Depends(require_user_with_permission(Permissions.HOUSEHOLDS_WRITE)),
     db: Session = Depends(get_db_session),
 ) -> dict:
-    user = _get_current_user(request, db)
+    _, user = auth_user
     tz = _validate_timezone(req.timezone.strip()) if req.timezone and req.timezone.strip() else user.timezone
     timestamp = now_utc()
     household = Household(
@@ -295,8 +285,11 @@ def create_household(
 
 
 @router.get("")
-def list_households(request: Request, db: Session = Depends(get_db_session)) -> dict:
-    user = _get_current_user(request, db)
+def list_households(
+    auth_user: tuple = Depends(require_user_with_permission(Permissions.HOUSEHOLDS_WRITE)),
+    db: Session = Depends(get_db_session),
+) -> dict:
+    _, user = auth_user
     memberships = (
         db.query(HouseholdMember)
         .filter(HouseholdMember.user_id == user.id)
@@ -314,10 +307,10 @@ def list_households(request: Request, db: Session = Depends(get_db_session)) -> 
 @router.get("/{household_id}")
 def get_household(
     household_id: int,
-    request: Request,
+    auth_user: tuple = Depends(require_user_with_permission(Permissions.HOUSEHOLDS_READ)),
     db: Session = Depends(get_db_session),
 ) -> dict:
-    user = _get_current_user(request, db)
+    _, user = auth_user
     household = _get_member_household(household_id, user.id, db)
     return {"household": _serialize_household(household, db)}
 
@@ -326,10 +319,10 @@ def get_household(
 def update_household(
     household_id: int,
     req: HouseholdUpdateRequest,
-    request: Request,
+    auth_user: tuple = Depends(require_user_with_permission(Permissions.HOUSEHOLDS_WRITE)),
     db: Session = Depends(get_db_session),
 ) -> dict:
-    user = _get_current_user(request, db)
+    _, user = auth_user
     household = _get_member_household(household_id, user.id, db)
 
     updated = False
@@ -352,10 +345,10 @@ def update_household(
 @router.delete("/{household_id}")
 def delete_household(
     household_id: int,
-    request: Request,
+    auth_user: tuple = Depends(require_user_with_permission(Permissions.HOUSEHOLDS_WRITE)),
     db: Session = Depends(get_db_session),
 ) -> dict:
-    user = _get_current_user(request, db)
+    _, user = auth_user
     household = _get_member_household(household_id, user.id, db)
     _require_owner(household, user.id)
 
@@ -388,10 +381,10 @@ def delete_household(
 @router.get("/{household_id}/members")
 def list_members(
     household_id: int,
-    request: Request,
+    auth_user: tuple = Depends(require_user_with_permission(Permissions.HOUSEHOLDS_READ)),
     db: Session = Depends(get_db_session),
 ) -> dict:
-    user = _get_current_user(request, db)
+    _, user = auth_user
     _get_member_household(household_id, user.id, db)
     members = (
         db.query(HouseholdMember)
@@ -411,10 +404,10 @@ def list_members(
 def add_member(
     household_id: int,
     req: HouseholdMemberAddRequest,
-    request: Request,
+    auth_user: tuple = Depends(require_user_with_permission(Permissions.HOUSEHOLDS_WRITE)),
     db: Session = Depends(get_db_session),
 ) -> dict:
-    user = _get_current_user(request, db)
+    _, user = auth_user
     household = _get_member_household(household_id, user.id, db)
     _require_owner(household, user.id)
 
@@ -455,10 +448,10 @@ def add_member(
 def remove_member(
     household_id: int,
     user_id: int,
-    request: Request,
+    auth_user: tuple = Depends(require_user_with_permission(Permissions.HOUSEHOLDS_WRITE)),
     db: Session = Depends(get_db_session),
 ) -> dict:
-    user = _get_current_user(request, db)
+    _, user = auth_user
     household = _get_member_household(household_id, user.id, db)
     _require_owner(household, user.id)
 
@@ -487,10 +480,10 @@ def remove_member(
 @router.get("/{household_id}/floors")
 def list_floors(
     household_id: int,
-    request: Request,
+    auth_user: tuple = Depends(require_user_with_permission(Permissions.HOUSEHOLDS_READ)),
     db: Session = Depends(get_db_session),
 ) -> dict:
-    user = _get_current_user(request, db)
+    _, user = auth_user
     _get_member_household(household_id, user.id, db)
     floors = (
         db.query(Floor)
@@ -505,10 +498,10 @@ def list_floors(
 def create_floor(
     household_id: int,
     req: FloorCreateRequest,
-    request: Request,
+    auth_user: tuple = Depends(require_user_with_permission(Permissions.HOUSEHOLDS_WRITE)),
     db: Session = Depends(get_db_session),
 ) -> dict:
-    user = _get_current_user(request, db)
+    _, user = auth_user
     _get_member_household(household_id, user.id, db)
     timestamp = now_utc()
     floor = Floor(
@@ -529,10 +522,10 @@ def update_floor(
     household_id: int,
     floor_id: int,
     req: FloorUpdateRequest,
-    request: Request,
+    auth_user: tuple = Depends(require_user_with_permission(Permissions.HOUSEHOLDS_WRITE)),
     db: Session = Depends(get_db_session),
 ) -> dict:
-    user = _get_current_user(request, db)
+    _, user = auth_user
     _get_member_household(household_id, user.id, db)
     floor = db.get(Floor, floor_id)
     if floor is None or floor.household_id != household_id:
@@ -558,10 +551,10 @@ def update_floor(
 def delete_floor(
     household_id: int,
     floor_id: int,
-    request: Request,
+    auth_user: tuple = Depends(require_user_with_permission(Permissions.HOUSEHOLDS_WRITE)),
     db: Session = Depends(get_db_session),
 ) -> dict:
-    user = _get_current_user(request, db)
+    _, user = auth_user
     _get_member_household(household_id, user.id, db)
     floor = db.get(Floor, floor_id)
     if floor is None or floor.household_id != household_id:
@@ -582,10 +575,10 @@ def delete_floor(
 @router.get("/{household_id}/rooms")
 def list_rooms(
     household_id: int,
-    request: Request,
+    auth_user: tuple = Depends(require_user_with_permission(Permissions.HOUSEHOLDS_READ)),
     db: Session = Depends(get_db_session),
 ) -> dict:
-    user = _get_current_user(request, db)
+    _, user = auth_user
     _get_member_household(household_id, user.id, db)
     rooms = (
         db.query(Room)
@@ -600,10 +593,10 @@ def list_rooms(
 def create_room(
     household_id: int,
     req: RoomCreateRequest,
-    request: Request,
+    auth_user: tuple = Depends(require_user_with_permission(Permissions.HOUSEHOLDS_WRITE)),
     db: Session = Depends(get_db_session),
 ) -> dict:
-    user = _get_current_user(request, db)
+    _, user = auth_user
     _get_member_household(household_id, user.id, db)
 
     if req.floor_id is not None:
@@ -631,10 +624,10 @@ def update_room(
     household_id: int,
     room_id: int,
     req: RoomUpdateRequest,
-    request: Request,
+    auth_user: tuple = Depends(require_user_with_permission(Permissions.HOUSEHOLDS_WRITE)),
     db: Session = Depends(get_db_session),
 ) -> dict:
-    user = _get_current_user(request, db)
+    _, user = auth_user
     _get_member_household(household_id, user.id, db)
     room = db.get(Room, room_id)
     if room is None or room.household_id != household_id:
@@ -669,10 +662,10 @@ def update_room(
 def delete_room(
     household_id: int,
     room_id: int,
-    request: Request,
+    auth_user: tuple = Depends(require_user_with_permission(Permissions.HOUSEHOLDS_WRITE)),
     db: Session = Depends(get_db_session),
 ) -> dict:
-    user = _get_current_user(request, db)
+    _, user = auth_user
     _get_member_household(household_id, user.id, db)
     room = db.get(Room, room_id)
     if room is None or room.household_id != household_id:
@@ -693,10 +686,10 @@ def delete_room(
 @router.get("/{household_id}/urls")
 def list_household_urls(
     household_id: int,
-    request: Request,
+    auth_user: tuple = Depends(require_user_with_permission(Permissions.HOUSEHOLDS_READ)),
     db: Session = Depends(get_db_session),
 ) -> dict:
-    user = _get_current_user(request, db)
+    _, user = auth_user
     _get_member_household(household_id, user.id, db)
     urls = (
         db.query(HouseholdUrl)
@@ -711,10 +704,10 @@ def list_household_urls(
 def create_household_url(
     household_id: int,
     req: HouseholdUrlCreateRequest,
-    request: Request,
+    auth_user: tuple = Depends(require_user_with_permission(Permissions.HOUSEHOLDS_WRITE)),
     db: Session = Depends(get_db_session),
 ) -> dict:
-    user = _get_current_user(request, db)
+    _, user = auth_user
     _get_member_household(household_id, user.id, db)
 
     timestamp = now_utc()
@@ -743,10 +736,10 @@ def update_household_url(
     household_id: int,
     url_id: int,
     req: HouseholdUrlUpdateRequest,
-    request: Request,
+    auth_user: tuple = Depends(require_user_with_permission(Permissions.HOUSEHOLDS_WRITE)),
     db: Session = Depends(get_db_session),
 ) -> dict:
-    user = _get_current_user(request, db)
+    _, user = auth_user
     _get_member_household(household_id, user.id, db)
     hurl = db.get(HouseholdUrl, url_id)
     if hurl is None or hurl.household_id != household_id:
@@ -781,10 +774,10 @@ def update_household_url(
 def set_default_household_url(
     household_id: int,
     url_id: int,
-    request: Request,
+    auth_user: tuple = Depends(require_user_with_permission(Permissions.HOUSEHOLDS_WRITE)),
     db: Session = Depends(get_db_session),
 ) -> dict:
-    user = _get_current_user(request, db)
+    _, user = auth_user
     _get_member_household(household_id, user.id, db)
     hurl = db.get(HouseholdUrl, url_id)
     if hurl is None or hurl.household_id != household_id:
@@ -805,10 +798,10 @@ def set_default_household_url(
 def delete_household_url(
     household_id: int,
     url_id: int,
-    request: Request,
+    auth_user: tuple = Depends(require_user_with_permission(Permissions.HOUSEHOLDS_WRITE)),
     db: Session = Depends(get_db_session),
 ) -> dict:
-    user = _get_current_user(request, db)
+    _, user = auth_user
     _get_member_household(household_id, user.id, db)
     hurl = db.get(HouseholdUrl, url_id)
     if hurl is None or hurl.household_id != household_id:
@@ -833,10 +826,10 @@ def delete_household_url(
 def get_household_url_by_name(
     household_id: int,
     friendly_name: str,
-    request: Request,
+    auth_user: tuple = Depends(require_user_with_permission(Permissions.HOUSEHOLDS_READ)),
     db: Session = Depends(get_db_session),
 ) -> dict:
-    user = _get_current_user(request, db)
+    _, user = auth_user
     _get_member_household(household_id, user.id, db)
     hurl = (
         db.query(HouseholdUrl)

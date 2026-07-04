@@ -9,7 +9,7 @@ export const authGuard: CanActivateFn = () => {
   return auth.session$.pipe(
     take(1),
     map(session => {
-      if (session?.status === 'authenticated') return true;
+      if (session.status === 'authenticated') return true;
       return router.createUrlTree(['/login']);
     })
   );
@@ -21,7 +21,7 @@ export const guestGuard: CanActivateFn = () => {
   return auth.session$.pipe(
     take(1),
     map(session => {
-      if (session?.status === 'authenticated') return router.createUrlTree(['/']);
+      if (session.status === 'authenticated') return router.createUrlTree(['/']);
       return true;
     })
   );

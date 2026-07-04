@@ -67,9 +67,9 @@ case "$MODE" in
   dev)   MODE_API_URL="${KPANEL_API_BASE_URL_DEV:-https://kpanel.dev.kumpe.app}" ;;
 esac
 
-# Offer to switch the installed client build to match the new mode.
+# Offer to switch the installed client build to match the new mode (interactive only).
 UPDATER_BIN="/opt/kpanel-client/.venv/bin/python"
-if [[ -f "$UPDATER_BIN" ]]; then
+if [[ -f "$UPDATER_BIN" ]] && [[ -t 0 ]]; then
   echo ""
   read -r -p "Also switch to the ${MODE} client build now? [y/N] " _REPLY
   if [[ "$_REPLY" =~ ^[Yy]$ ]]; then
