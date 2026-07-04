@@ -1,38 +1,54 @@
 <div class="auth-shell">
-  <div class="auth-card" *ngIf="session">
+  <div class="auth-card">
 
-    <!-- ── Unauthenticated / provider selection ──────────────────────── -->
+    <ng-container *ngIf="status === 'access_denied'">
+      <div class="hero">
+        <img class="logo-img" src="logo.webp" alt="kPanel" />
+        <span class="logo-text">kPanel</span>
+        <p class="tagline">Access Not Permitted</p>
+      </div>
+      <p class="error-msg">{{ session.message || 'Access to kPanel is not permitted for this account.' }}</p>
+      <p class="info-msg">Sign out to switch KumpeCloud accounts.</p>
+      <button
+        type="button"
+        class="btn-secondary"
+        (click)="logout()"
+        [disabled]="loggingOut">
+        {{ loggingOut ? 'Signing out…' : 'Sign Out' }}
+      </button>
+      <p *ngIf="error" class="error-msg">{{ error }}</p>
+    </ng-container>
+
     <ng-container *ngIf="status === 'unauthenticated'">
       <div class="hero">
         <img class="logo-img" src="logo.webp" alt="kPanel" />
         <span class="logo-text">kPanel</span>
         <p class="tagline">Sign in to manage your devices</p>
       </div>
-      <div class="providers" *ngIf="oauthProviders.length > 0">
-        <button
-          *ngFor="let p of oauthProviders"
-          class="provider-button"
-          [ngClass]="'provider-button--' + p.name"
-          (click)="loginWith(p.name)">
-          <span class="provider-icon" [innerHTML]="providerIcon(p.name)"></span>
-          <span>Sign in with {{ p.label }}</span>
-        </button>
-      </div>
-      <hr *ngIf="oauthProviders.length > 0 && hasDevLogin" class="provider-divider" />
-      <form class="form dev-login-form" *ngIf="hasDevLogin" (ngSubmit)="devLogin()">
+      <button
+        *ngIf="oidcConfigured"
+        type="button"
+        class="provider-button provider-button--kumpecloud"
+        (click)="signIn()">
+        Sign in with KumpeCloud
+      </button>
+      <form *ngIf="devAuthEnabled" class="form dev-login-form" (ngSubmit)="devLogin()">
         <label class="field">
-          <span>Dev Email</span>
+          <span>Dev Email (local only)</span>
           <input type="email" [(ngModel)]="devEmail" name="devEmail"
-                 placeholder="you@example.com" required />
+                 placeholder="you@example.com" />
         </label>
         <button type="submit" class="btn-secondary" [disabled]="!devEmail.trim()">
           Sign In (Dev)
         </button>
       </form>
-      <p *ngIf="session.message" class="info-msg">{{ session.message }}</p>
+      <p *ngIf="!oidcConfigured && !devAuthEnabled" class="error-msg">
+        Sign-in is not configured. Set KPANEL_LOGTO_APP_ID on the backend.
+      </p>
+      <p *ngIf="error" class="error-msg">{{ error }}</p>
+      <p *ngIf="session.message" class="error-msg">{{ session.message }}</p>
     </ng-container>
 
-    <!-- ── Needs account creation ────────────────────────────────────── -->
     <ng-container *ngIf="status === 'needs_account'">
       <div class="hero">
         <img class="logo-img" src="logo.webp" alt="kPanel" />
@@ -41,7 +57,7 @@
       </div>
       <ng-container *ngIf="session.pending as pending">
         <p class="info-msg">
-          Signed in as <strong>{{ pending.email }}</strong> via {{ pending.provider_name }}
+          Signed in as <strong>{{ pending.email }}</strong> via KumpeCloud Auth
         </p>
       </ng-container>
       <form class="form" (ngSubmit)="createAccount()">
@@ -61,65 +77,7 @@
       </form>
     </ng-container>
 
-    <!-- ── Needs account linking ─────────────────────────────────────── -->
-    <ng-container *ngIf="status === 'needs_link'">
-      <div class="hero">
-        <img class="logo-img" src="logo.webp" alt="kPanel" />
-        <span class="logo-text">kPanel</span>
-        <p class="tagline">Link Account</p>
-      </div>
-      <ng-container *ngIf="session && session.pending as pending">
-        <p class="info-msg">
-          Sign in to your existing account to link
-          <strong>{{ pending.provider_name }}</strong>
-          ({{ pending.email }}).
-        </p>
-      </ng-container>
-      <div class="providers" *ngIf="oauthProviders.length > 0">
-        <button
-          *ngFor="let p of oauthProviders"
-          class="provider-button"
-          [ngClass]="'provider-button--' + p.name"
-          (click)="loginWith(p.name)">
-          <span class="provider-icon" [innerHTML]="providerIcon(p.name)"></span>
-          <span>Continue with {{ p.label }}</span>
-        </button>
-      </div>
-      <hr *ngIf="oauthProviders.length > 0 && hasDevLogin" class="provider-divider" />
-      <form class="form dev-login-form" *ngIf="hasDevLogin" (ngSubmit)="devLogin()">
-        <label class="field">
-          <span>Dev Email</span>
-          <input type="email" [(ngModel)]="devEmail" name="devEmail"
-                 placeholder="you@example.com" required />
-        </label>
-        <button type="submit" class="btn-secondary" [disabled]="!devEmail.trim()">
-          Continue (Dev)
-        </button>
-      </form>
-      <p *ngIf="error" class="error-msg">{{ error }}</p>
-    </ng-container>
-
-    <!-- ── Link ready to confirm ─────────────────────────────────────── -->
-    <ng-container *ngIf="status === 'link_ready'">
-      <div class="hero">
-        <img class="logo-img" src="logo.webp" alt="kPanel" />
-        <span class="logo-text">kPanel</span>
-        <p class="tagline">Confirm Link</p>
-      </div>
-      <ng-container *ngIf="session && session.pending as pending">
-        <p class="info-msg">
-          Link <strong>{{ pending.provider_name }}</strong>
-          ({{ pending.email }}) to your account?
-        </p>
-      </ng-container>
-      <p *ngIf="error" class="error-msg">{{ error }}</p>
-      <div class="btn-row">
-        <button class="btn-primary" (click)="completeLink()" [disabled]="loading">
-          {{ loading ? 'Linking…' : 'Confirm Link' }}
-        </button>
-        <button class="btn-secondary" (click)="cancelLink()" [disabled]="loading">Cancel</button>
-      </div>
-    </ng-container>
+    <app-auth-debug-panel></app-auth-debug-panel>
 
   </div>
 </div>

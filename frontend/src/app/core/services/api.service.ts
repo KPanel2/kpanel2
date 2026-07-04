@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
@@ -7,27 +7,52 @@ import { catchError } from 'rxjs/operators';
 export class ApiService {
   constructor(private http: HttpClient) {}
 
-  get<T>(path: string): Observable<T> {
+  private devHeaders(): HttpHeaders | undefined {
+    const email = localStorage.getItem('kpanel_dev_email');
+    if (!email) return undefined;
+    return new HttpHeaders({ 'X-KPanel-Dev-Email': email });
+  }
+
+  private mergeHeaders(extra?: HttpHeaders): HttpHeaders | undefined {
+    const dev = this.devHeaders();
+    if (!extra) {
+      return dev;
+    }
+    if (!dev) {
+      return extra;
+    }
+
+    let merged = dev;
+    for (const key of extra.keys()) {
+      const value = extra.get(key);
+      if (value !== null) {
+        merged = merged.set(key, value);
+      }
+    }
+    return merged;
+  }
+
+  get<T>(path: string, headers?: HttpHeaders): Observable<T> {
     return this.http
-      .get<T>(path, { withCredentials: true })
+      .get<T>(path, { headers: this.mergeHeaders(headers) })
       .pipe(catchError(this.handleError));
   }
 
-  post<T>(path: string, body: unknown = {}): Observable<T> {
+  post<T>(path: string, body: unknown = {}, headers?: HttpHeaders): Observable<T> {
     return this.http
-      .post<T>(path, body, { withCredentials: true })
+      .post<T>(path, body, { headers: this.mergeHeaders(headers) })
       .pipe(catchError(this.handleError));
   }
 
-  patch<T>(path: string, body: unknown): Observable<T> {
+  patch<T>(path: string, body: unknown, headers?: HttpHeaders): Observable<T> {
     return this.http
-      .patch<T>(path, body, { withCredentials: true })
+      .patch<T>(path, body, { headers: this.mergeHeaders(headers) })
       .pipe(catchError(this.handleError));
   }
 
-  delete<T>(path: string, body?: unknown): Observable<T> {
+  delete<T>(path: string, body?: unknown, headers?: HttpHeaders): Observable<T> {
     return this.http
-      .delete<T>(path, { withCredentials: true, body })
+      .delete<T>(path, { body, headers: this.mergeHeaders(headers) })
       .pipe(catchError(this.handleError));
   }
 

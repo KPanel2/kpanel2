@@ -1,11 +1,5 @@
-export interface Provider {
-  name: string;
-  label: string;
-}
-
 export interface Identity {
   provider_name: string;
-  provider_user_id: string;
   email: string | null;
   display_name: string | null;
 }
@@ -44,13 +38,14 @@ export interface PendingAuth {
   provider_name: string;
   email: string | null;
   display_name?: string | null;
-  link_providers?: string[];
 }
 
 export interface SessionState {
-  status: 'unauthenticated' | 'needs_account' | 'needs_link' | 'link_ready' | 'authenticated';
-  providers: Provider[];
+  status: 'unauthenticated' | 'needs_account' | 'authenticated' | 'access_denied';
+  permissions: string[];
   user?: User;
   pending?: PendingAuth;
   message?: string;
+  /** Present when KPANEL_AUTH_DEBUG_ENABLED — server-side security-flag evaluation. */
+  debug?: Record<string, unknown>;
 }

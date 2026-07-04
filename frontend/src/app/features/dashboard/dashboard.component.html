@@ -35,6 +35,8 @@
       [user]="user">
     </app-profile-card>
 
+    <app-auth-debug-panel></app-auth-debug-panel>
+
     <!-- ── Devices tab ──────────────────────────────────────────────────── -->
     <ng-container *ngIf="activeTab === 'devices'">
       <app-claim-device (claimed)="onDeviceClaimed()"></app-claim-device>

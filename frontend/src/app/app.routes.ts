@@ -1,7 +1,13 @@
 import { Routes } from '@angular/router';
+
 import { authGuard, guestGuard } from './core/guards/auth.guard';
 
 export const routes: Routes = [
+  {
+    path: 'callback',
+    loadComponent: () =>
+      import('./features/auth/callback/callback.component').then(m => m.CallbackComponent),
+  },
   {
     path: 'login',
     loadComponent: () =>
@@ -16,4 +22,3 @@ export const routes: Routes = [
   },
   { path: '**', redirectTo: '' },
 ];
-
