@@ -2,43 +2,60 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { combineLatest } from 'rxjs';
 
 import { AuthService } from '../../../core/services/auth.service';
+import {
+  AuthFlowService,
+  LoginViewContext,
+  LoginViewPhase,
+} from '../../../core/services/auth-flow.service';
 import { SessionState } from '../../../core/models/session.model';
 import { environment, isOidcConfigured } from '../../../../environments/environment';
+import { AuthStatusComponent } from '../auth-status/auth-status.component';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, AuthStatusComponent],
   templateUrl: './login.component.html',
   styleUrls: ['./login.component.scss'],
 })
 export class LoginComponent implements OnInit {
   session: SessionState = { status: 'unauthenticated', permissions: [] };
+  authReady = false;
+  viewPhase: LoginViewPhase = 'checking';
+  statusMessage = 'Checking sign-in…';
   loading = false;
   loggingOut = false;
+  redirecting = false;
   error = '';
   devEmail = '';
   accountCenterProfileUrl = '';
 
-  constructor(private auth: AuthService, private router: Router) {}
+  constructor(
+    private auth: AuthService,
+    private authFlow: AuthFlowService,
+    private router: Router,
+  ) {}
 
   ngOnInit(): void {
     if (isOidcConfigured()) {
       this.accountCenterProfileUrl = this.auth.accountCenterProfileUrl();
     }
 
-    this.auth.session$.subscribe(s => {
-      this.session = s;
-      if (s?.status === 'authenticated') {
-        this.router.navigate(['/']);
-      }
-    });
-  }
+    combineLatest([this.auth.session$, this.auth.authReady$]).subscribe(([session, authReady]) => {
+      this.session = session;
+      this.authReady = authReady;
+      this.updateViewPhase();
 
-  get status(): string {
-    return this.session.status;
+      if (authReady && session.status === 'authenticated') {
+        this.router.navigate(['/']);
+        return;
+      }
+
+      this.maybeAutoRedirect();
+    });
   }
 
   get oidcConfigured(): boolean {
@@ -50,10 +67,12 @@ export class LoginComponent implements OnInit {
   }
 
   signIn(): void {
+    this.beginOidcRedirect();
+  }
+
+  retrySignIn(): void {
     this.error = '';
-    this.auth.signIn().catch((err: unknown) => {
-      this.error = err instanceof Error ? err.message : 'Sign-in is not available.';
-    });
+    this.beginOidcRedirect();
   }
 
   logout(): void {
@@ -85,6 +104,44 @@ export class LoginComponent implements OnInit {
         this.error = e.message;
         this.loading = false;
       },
+    });
+  }
+
+  private viewContext(): LoginViewContext {
+    return {
+      authReady: this.authReady,
+      session: this.session,
+      oidcConfigured: this.oidcConfigured,
+      devAuthEnabled: this.devAuthEnabled,
+      redirecting: this.redirecting,
+      redirectError: this.error,
+    };
+  }
+
+  private updateViewPhase(): void {
+    this.viewPhase = this.authFlow.resolveLoginViewPhase(this.viewContext());
+    this.statusMessage = this.authFlow.loginStatusMessage(this.viewPhase);
+  }
+
+  private maybeAutoRedirect(): void {
+    if (!this.authFlow.shouldAutoRedirectToOidc(this.viewContext())) {
+      return;
+    }
+
+    this.beginOidcRedirect();
+  }
+
+  private beginOidcRedirect(): void {
+    if (this.redirecting) {
+      return;
+    }
+
+    this.redirecting = true;
+    this.updateViewPhase();
+    this.auth.signIn().catch((err: unknown) => {
+      this.redirecting = false;
+      this.error = err instanceof Error ? err.message : 'Sign-in is not available.';
+      this.updateViewPhase();
     });
   }
 }

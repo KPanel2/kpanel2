@@ -1,9 +1,8 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { Router, RouterOutlet } from '@angular/router';
-import { switchMap, take } from 'rxjs';
 
 import { AuthService } from './core/services/auth.service';
-import { OidcRuntimeService } from './core/services/oidc-runtime.service';
+import { AuthFlowService } from './core/services/auth-flow.service';
 
 @Component({
   selector: 'app-root',
@@ -12,47 +11,29 @@ import { OidcRuntimeService } from './core/services/oidc-runtime.service';
 })
 export class AppComponent implements OnInit {
   private readonly auth = inject(AuthService);
+  private readonly authFlow = inject(AuthFlowService);
   private readonly router = inject(Router);
-  private readonly oidcRuntime = inject(OidcRuntimeService);
 
   ngOnInit(): void {
-    this.auth.session$.subscribe(session => this.handleSession(session));
+    this.auth.session$.subscribe(session => {
+      const destination = this.authFlow.resolveSessionNavigation(
+        session,
+        this.router.url,
+        this.auth.authReady,
+      );
+      if (destination) {
+        this.router.navigate([destination]);
+      }
+    });
 
-    const accountCenterSuccess = this.auth.consumeAccountCenterSuccess();
-    const refreshClaims = accountCenterSuccess;
+    const refreshClaims = this.auth.consumeAccountCenterSuccess();
 
-    const oidc = this.oidcRuntime.getService();
-    const bootstrap$ = oidc
-      ? oidc.isAuthenticated().pipe(
-        take(1),
-        switchMap(isAuthenticated => (
-          isAuthenticated
-            ? this.auth.bootstrapAfterLogin({ refreshClaims })
-            : this.auth.loadSession({ refreshClaims })
-        )),
-      )
-      : this.auth.loadSession({ refreshClaims });
-
-    bootstrap$.subscribe({
+    this.auth.bootstrapApp({ refreshClaims }).subscribe({
       error: () => {
         if (!this.router.url.startsWith('/callback')) {
           this.router.navigate(['/login']);
         }
       },
     });
-  }
-
-  private handleSession(session: { status: string }): void {
-    if (session.status === 'authenticated' && this.router.url.startsWith('/login')) {
-      this.router.navigate(['/']);
-    } else if (session.status === 'access_denied' && !this.router.url.startsWith('/login')) {
-      this.router.navigate(['/login']);
-    } else if (
-      session.status === 'unauthenticated'
-      && !this.router.url.startsWith('/login')
-      && !this.router.url.startsWith('/callback')
-    ) {
-      this.router.navigate(['/login']);
-    }
   }
 }
