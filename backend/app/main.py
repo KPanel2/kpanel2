@@ -296,6 +296,15 @@ def device_bootstrap(req: DeviceBootstrapRequest, db: Session = Depends(get_db_s
         db.refresh(device)
     else:
         if registration_code != device.registration_code:
+            if device.user_id is not None:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "error": "registration-code-mismatch",
+                        "registration_code": device.registration_code,
+                    },
+                )
+
             existing_code = db.get(DeviceRegistration, registration_code)
             if existing_code is not None and existing_code.device_id != req.device_id:
                 if existing_code.user_id is not None:

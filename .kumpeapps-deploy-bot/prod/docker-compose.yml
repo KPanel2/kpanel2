@@ -42,7 +42,7 @@ services:
       - KPANEL_LOGTO_ENDPOINT=${KPANEL_LOGTO_ENDPOINT}
       - KPANEL_LOGTO_APP_ID=${KPANEL_LOGTO_APP_ID}
       - KPANEL_API_RESOURCE=${KPANEL_API_RESOURCE}
-      - KPANEL_SECONDARY_API_RESOURCE=${KPANEL_SECONDARY_API_RESOURCE:-https://securityflags.kumpeapps.com}
+      - KPANEL_SECONDARY_API_RESOURCE=${KPANEL_SECONDARY_API_RESOURCE:-https://www.kumpeapps.com/security}
 
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"]

@@ -127,6 +127,12 @@ def run() -> None:
         bootstrap_result = api.bootstrap_device(cfg.device_id, state.registration_code)
         if not bootstrap_result.ok:
             if bootstrap_result.error == "code-conflict":
+                if bootstrap_result.registration_code:
+                    # Server-side canonical code for this device; adopt it instead of rotating.
+                    state.registration_code = bootstrap_result.registration_code
+                    persist_state(cfg.state_path, state)
+                    time.sleep(cfg.poll_interval_sec)
+                    continue
                 # Registration code is taken by a different device; generate a fresh one.
                 state.registration_code = generate_registration_code()
                 persist_state(cfg.state_path, state)
@@ -166,6 +172,15 @@ def run() -> None:
         if resolved.status == "invalid-token":
             hide_registration_prompt()
             stop_kiosk()
+            refresh = api.bootstrap_device(cfg.device_id, state.registration_code)
+            if refresh.ok and refresh.device_token:
+                state.device_token = refresh.device_token
+                api.set_device_token(refresh.device_token)
+                if refresh.registration_code:
+                    state.registration_code = refresh.registration_code
+                persist_state(cfg.state_path, state)
+                time.sleep(cfg.poll_interval_sec)
+                continue
             state.device_token = ""
             api.set_device_token("")
             state.registration_code = generate_registration_code()

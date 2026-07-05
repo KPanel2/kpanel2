@@ -62,7 +62,11 @@ class KPanelApiClient:
             return BootstrapResult(ok=False, error="bad-response")
 
         if resp.status_code == 409:
-            return BootstrapResult(ok=False, error="code-conflict")
+            canonical = ""
+            detail = data.get("detail")
+            if isinstance(detail, dict):
+                canonical = str(detail.get("registration_code", "")).strip().upper()
+            return BootstrapResult(ok=False, error="code-conflict", registration_code=canonical)
         if resp.status_code != 200:
             return BootstrapResult(ok=False, error=f"http-{resp.status_code}")
 

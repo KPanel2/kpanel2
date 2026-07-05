@@ -1,0 +1,8 @@
+{
+  "files": {
+    "app/foo.py": {
+      "executed_lines": [10, 12],
+      "missing_lines": [11]
+    }
+  }
+}

@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import {
   computePrDiffCoverage,
+  loadPytestCoverage,
   parseGitDiff,
   parseKarmaHtmlFile,
   roundPct,
@@ -34,6 +36,21 @@ describe('pr-diff-coverage', () => {
         coverable: new Set([1, 2, 3]),
       }],
     ]);
+
+    const result = computePrDiffCoverage(changed, coverage);
+    assert.equal(result.lines, roundPct((2 / 3) * 100));
+    assert.equal(result.coverableChangedLines, 3);
+    assert.equal(result.coveredChangedLines, 2);
+  });
+
+  it('computes PR coverage from pytest coverage json', () => {
+    const changed = new Map([
+      ['backend/app/foo.py', new Set([10, 11, 12])],
+    ]);
+    const coverage = loadPytestCoverage(
+      fileURLToPath(new URL('./fixtures/pytest-coverage.json', import.meta.url)),
+      'backend/',
+    );
 
     const result = computePrDiffCoverage(changed, coverage);
     assert.equal(result.lines, roundPct((2 / 3) * 100));

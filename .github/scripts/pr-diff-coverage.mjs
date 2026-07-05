@@ -74,7 +74,7 @@ export function loadPytestCoverage(coveragePath, repoPathPrefix) {
     const executed = new Set(info.executed_lines ?? []);
     const missing = new Set(info.missing_lines ?? []);
     const coverable = new Set([...executed, ...missing]);
-    map.set(normalized, { executed, coverable });
+    map.set(normalized, { covered: executed, coverable });
   }
 
   return map;
