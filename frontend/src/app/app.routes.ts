@@ -9,6 +9,12 @@ export const routes: Routes = [
       import('./features/auth/callback/callback.component').then(m => m.CallbackComponent),
   },
   {
+    path: 'signed-out',
+    loadComponent: () =>
+      import('./features/auth/signed-out/signed-out.component').then(m => m.SignedOutComponent),
+    canActivate: [guestGuard],
+  },
+  {
     path: 'login',
     loadComponent: () =>
       import('./features/auth/login/login.component').then(m => m.LoginComponent),

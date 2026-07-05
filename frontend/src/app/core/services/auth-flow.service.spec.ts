@@ -149,18 +149,20 @@ describe('AuthFlowService helpers', () => {
       expect(resolveSessionNavigation(UNAUTHENTICATED, '/', false)).toBeNull();
     });
 
-    it('routes authenticated users away from login', () => {
+    it('routes authenticated users away from login and signed-out', () => {
       expect(resolveSessionNavigation(AUTHENTICATED, '/login', true)).toBe('/');
+      expect(resolveSessionNavigation(AUTHENTICATED, '/signed-out', true)).toBe('/');
     });
 
     it('routes access_denied users to login', () => {
       expect(resolveSessionNavigation(ACCESS_DENIED, '/', true)).toBe('/login');
     });
 
-    it('routes unauthenticated users to login except on callback', () => {
+    it('routes unauthenticated users to login except on public auth paths', () => {
       expect(resolveSessionNavigation(UNAUTHENTICATED, '/', true)).toBe('/login');
       expect(resolveSessionNavigation(UNAUTHENTICATED, '/callback', true)).toBeNull();
       expect(resolveSessionNavigation(UNAUTHENTICATED, '/login', true)).toBeNull();
+      expect(resolveSessionNavigation(UNAUTHENTICATED, '/signed-out', true)).toBeNull();
     });
   });
 });

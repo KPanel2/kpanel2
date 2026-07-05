@@ -7,7 +7,7 @@ import { environment } from './environments/environment';
 async function loadAuthConfig(): Promise<void> {
   const origin = window.location.origin;
   environment.logto.redirectUri = `${origin}/callback`;
-  environment.logto.postLogoutRedirectUri = `${origin}/login`;
+  environment.logto.postLogoutRedirectUri = `${origin}/signed-out`;
 
   const response = await fetch('/api/v1/auth/config');
   if (response.ok) {

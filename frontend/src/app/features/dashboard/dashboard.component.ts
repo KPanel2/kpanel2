@@ -99,11 +99,11 @@ export class DashboardComponent implements OnInit {
     this.auth.logout().subscribe({
       next: () => {
         this.auth.loadSession().subscribe({
-          next: () => this.router.navigate(['/login']),
-          error: () => this.router.navigate(['/login']),
+          next: () => this.router.navigate(['/signed-out']),
+          error: () => this.router.navigate(['/signed-out']),
         });
       },
-      error: () => this.router.navigate(['/login']),
+      error: () => this.router.navigate(['/signed-out']),
     });
   }
 }

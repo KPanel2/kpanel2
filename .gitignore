@@ -33,6 +33,8 @@ dist/
 coverage/
 frontend/coverage/
 backend/coverage/
+coverage-frontend.json
+coverage-backend.json
 test-frontend.log
 test-backend.log
 

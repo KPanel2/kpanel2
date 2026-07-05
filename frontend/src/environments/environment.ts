@@ -5,7 +5,7 @@ export const environment = {
     endpoint: 'https://auth.stage.kumpe.app',
     appId: '',
     redirectUri: 'http://localhost:8080/callback',
-    postLogoutRedirectUri: 'http://localhost:8080/login',
+    postLogoutRedirectUri: 'http://localhost:8080/signed-out',
     apiResource: 'http://localhost:8080',
     secondaryApiResource: 'https://securityflags.kumpeapps.com',
     organizationId: '' as string,

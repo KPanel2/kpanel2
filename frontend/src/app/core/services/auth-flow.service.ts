@@ -2,6 +2,12 @@ import { Injectable } from '@angular/core';
 
 import { SessionState } from '../models/session.model';
 
+export const AUTH_PUBLIC_PATHS = ['/login', '/signed-out', '/callback'] as const;
+
+export function isAuthPublicPath(url: string): boolean {
+  return AUTH_PUBLIC_PATHS.some(path => url.startsWith(path));
+}
+
 export type LoginViewPhase =
   | 'checking'
   | 'redirecting'
@@ -84,7 +90,7 @@ export function resolveSessionNavigation(
     return null;
   }
 
-  if (session.status === 'authenticated' && url.startsWith('/login')) {
+  if (session.status === 'authenticated' && (url.startsWith('/login') || url.startsWith('/signed-out'))) {
     return '/';
   }
 
@@ -92,11 +98,7 @@ export function resolveSessionNavigation(
     return '/login';
   }
 
-  if (
-    session.status === 'unauthenticated'
-    && !url.startsWith('/login')
-    && !url.startsWith('/callback')
-  ) {
+  if (session.status === 'unauthenticated' && !isAuthPublicPath(url)) {
     return '/login';
   }
 
