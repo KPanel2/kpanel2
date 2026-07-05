@@ -16,7 +16,6 @@ import { catchError, filter, map, tap } from 'rxjs/operators';
 import { firstValueFrom } from 'rxjs';
 
 import { ApiService } from './api.service';
-import { AuthDebugService } from './auth-debug.service';
 import { AuthRequestTraceService } from './auth-request-trace.service';
 import { KumpeAccountCenterService } from './kumpe-account-center.service';
 import { LogtoApiTokenService } from './logto-api-token.service';
@@ -38,7 +37,6 @@ export class AuthService {
   private readonly logtoOAuth = inject(LogtoOAuthService);
   private readonly accountCenter = inject(KumpeAccountCenterService);
   private readonly apiTokenService = inject(LogtoApiTokenService);
-  private readonly authDebug = inject(AuthDebugService);
   private readonly requestTrace = inject(AuthRequestTraceService);
   private readonly _session = new BehaviorSubject<SessionState>(UNAUTHENTICATED_SESSION);
   private securityWatchSub?: Subscription;
@@ -68,9 +66,9 @@ export class AuthService {
 
     return refreshClaims$.pipe(
       switchMap(() => from(this.prepareAuthHeaders({ includeSecurityFlags: true }))),
-      switchMap(({ headers, delivery }) => this.api.get<SessionState>('/api/v1/auth/session', headers).pipe(
+      switchMap(({ headers }) => this.api.get<SessionState>('/api/v1/auth/session', headers).pipe(
         map(session => this.applyLocalSecurityPolicy(session)),
-        tap(session => this.applySessionState(session, delivery)),
+        tap(session => this.applySessionState(session)),
       )),
       catchError((err: unknown) => {
         const message = err instanceof Error ? err.message : 'Failed to load session.';
@@ -153,11 +151,7 @@ export class AuthService {
     return session;
   }
 
-  private applySessionState(
-    session: SessionState,
-    delivery?: { authorization: boolean; idToken: boolean; securityFlags: boolean },
-  ): void {
-    void this.authDebug.capture(session, delivery);
+  private applySessionState(session: SessionState): void {
     if (session.status === 'access_denied') {
       this.stopSecurityWatch();
       this._session.next(session);
@@ -204,7 +198,6 @@ export class AuthService {
   logout(): Observable<unknown> {
     this.stopSecurityWatch();
     this.apiTokenService.clear();
-    this.authDebug.clear();
     this.requestTrace.clear();
     localStorage.removeItem('kpanel_dev_email');
     return this.api.post('/api/v1/auth/logout').pipe(
@@ -217,13 +210,13 @@ export class AuthService {
 
   createAccount(): Observable<SessionState> {
     return from(this.prepareAuthHeaders({ includeSecurityFlags: true })).pipe(
-      switchMap(({ headers, delivery }) => this.api.post<SessionState>(
+      switchMap(({ headers }) => this.api.post<SessionState>(
         '/api/v1/account/create',
         {},
         headers,
       ).pipe(
         map(session => this.applyLocalSecurityPolicy(session)),
-        tap(session => this.applySessionState(session, delivery)),
+        tap(session => this.applySessionState(session)),
       )),
     );
   }

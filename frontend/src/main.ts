@@ -17,14 +17,12 @@ async function loadAuthConfig(): Promise<void> {
       apiResource?: string;
       secondaryApiResource?: string;
       devAuthEnabled?: boolean;
-      authDebugEnabled?: boolean;
     };
     if (data.logtoEndpoint) environment.logto.endpoint = data.logtoEndpoint;
     if (data.appId) environment.logto.appId = data.appId;
     if (data.apiResource) environment.logto.apiResource = data.apiResource;
     if (data.secondaryApiResource) environment.logto.secondaryApiResource = data.secondaryApiResource;
     if (typeof data.devAuthEnabled === 'boolean') environment.devAuthEnabled = data.devAuthEnabled;
-    if (typeof data.authDebugEnabled === 'boolean') environment.authDebugEnabled = data.authDebugEnabled;
   }
 
   const permissionsResponse = await fetch('/api/v1/auth/permissions');
