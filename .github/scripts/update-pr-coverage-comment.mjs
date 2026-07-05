@@ -80,10 +80,38 @@ function formatPct(value) {
   return `${value}%`;
 }
 
-function statusFor(result) {
+function formatPrCoverage(result) {
+  const pr = result?.prCoverage;
+  if (!pr?.available) {
+    return 'n/a';
+  }
+  if (pr.noChanges) {
+    return 'No changes';
+  }
+  if (pr.noCoverableChanges) {
+    return 'No coverable changes';
+  }
+  return formatPct(result?.prLines);
+}
+
+function statusFor(result, { pr = false } = {}) {
   if (!result || result.parseError) {
     return '❓ Unavailable';
   }
+
+  if (pr) {
+    const prValue = result.prCoverage;
+    if (!prValue?.available) {
+      return 'n/a';
+    }
+    if (prValue.noChanges || prValue.noCoverableChanges || result.prLines == null) {
+      return '—';
+    }
+    return result.prBelowThreshold
+      ? `⚠️ Below ${result.threshold}%`
+      : `✅ Meets ${result.threshold}%`;
+  }
+
   return result.belowThreshold
     ? `⚠️ Below ${result.threshold}%`
     : `✅ Meets ${result.threshold}%`;
@@ -95,10 +123,10 @@ function renderComment(data) {
     const key = suiteLabel.toLowerCase();
     const result = data[key];
     const workflowLink = result?.workflowUrl
-      ? `[${suiteLabel} run](${result.workflowUrl})`
+      ? `[${suiteLabel}](${result.workflowUrl})`
       : suiteLabel;
 
-    return `| ${workflowLink} | ${formatPct(result?.lines)} | ${result?.threshold ?? 80}% | ${statusFor(result)} |`;
+    return `| ${workflowLink} | ${formatPct(result?.lines)} | ${formatPrCoverage(result)} | ${result?.threshold ?? 80}% | ${statusFor(result)} | ${statusFor(result, { pr: true })} |`;
   });
 
   const sha = process.env.GITHUB_SHA?.slice(0, 7) ?? 'unknown';
@@ -109,8 +137,8 @@ function renderComment(data) {
     '',
     'Tests must pass for merge. Coverage below 80% is reported as a warning only.',
     '',
-    '| Suite | Lines | Target | Status |',
-    '| --- | --- | --- | --- |',
+    '| Suite | Overall | PR new code | Target | Overall status | PR new code status |',
+    '| --- | --- | --- | --- | --- | --- |',
     ...rows,
     '',
     `<sub>Updated for commit \`${sha}\` by GitHub Actions.</sub>`,
