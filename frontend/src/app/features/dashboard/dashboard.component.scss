@@ -95,6 +95,15 @@
   gap: 1.5rem;
   padding: 2rem;
   max-width: 960px;
+
+  &--wide {
+    max-width: 1280px;
+  }
+}
+
+.nav-item--admin.active {
+  background: rgba(255, 107, 122, 0.12);
+  color: var(--danger);
 }
 
 @media (max-width: 768px) {

@@ -13,6 +13,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from app.account_routes import router as account_router
 from app.auth import require_admin_api_key, require_device_access
 from app.auth_routes import router as auth_router
+from app.superadmin_routes import router as superadmin_router
 from app.client_updates import build_update_policy, get_latest_for_channel
 from app.db import Base, engine, get_db_session
 from app.models import DeviceRegistration, Household, HouseholdMember, HouseholdUrl, Registration, Room, User
@@ -66,6 +67,7 @@ from app.households import router as _households_router  # noqa: E402
 app.include_router(_households_router)
 app.include_router(auth_router)
 app.include_router(account_router)
+app.include_router(superadmin_router)
 
 
 @app.on_event("startup")

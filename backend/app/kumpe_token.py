@@ -90,6 +90,8 @@ _PROFILE_CLAIM_KEYS = (
     "picture",
 )
 
+_CUSTOM_DATA_CLAIM_KEYS = ("custom_data", "customData")
+
 
 def merge_profile_claims(api_claims: dict[str, Any], id_claims: dict[str, Any]) -> dict[str, Any]:
     """Attach identity claims from the OIDC ID token onto API access-token claims.
@@ -110,4 +112,16 @@ def merge_profile_claims(api_claims: dict[str, Any], id_claims: dict[str, Any]) 
         value = id_claims.get(key)
         if isinstance(value, str) and value.strip():
             merged[key] = value.strip()
+
+    for key in _CUSTOM_DATA_CLAIM_KEYS:
+        value = id_claims.get(key)
+        if isinstance(value, dict):
+            merged[key] = value
+
+    custom_data = merged.get("custom_data")
+    if not isinstance(custom_data, dict):
+        fallback = merged.get("customData")
+        if isinstance(fallback, dict):
+            merged["custom_data"] = fallback
+
     return merged

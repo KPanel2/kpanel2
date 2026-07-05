@@ -25,6 +25,7 @@ export function createAppConfig(): ApplicationConfig {
       apiPermissionScopes: [
         ...environment.logto.apiPermissions,
         ...environment.logto.secondaryPermissions,
+        ...environment.logto.elevatedPermissions,
       ],
     });
     providers.push(

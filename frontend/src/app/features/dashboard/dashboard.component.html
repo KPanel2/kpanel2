@@ -19,6 +19,13 @@
         (click)="setTab('households')">
         Households
       </button>
+      <button
+        *ngIf="isSuperadmin"
+        class="nav-item nav-item--admin"
+        [class.active]="activeTab === 'superadmin'"
+        (click)="setTab('superadmin')">
+        SuperAdmin
+      </button>
     </nav>
     <div class="sidebar-footer">
       <span class="user-name">{{ user?.display_name }}</span>
@@ -27,7 +34,7 @@
   </aside>
 
   <!-- ── Main content ───────────────────────────────────────────────────── -->
-  <main class="main-content">
+  <main class="main-content" [class.main-content--wide]="activeTab === 'superadmin'">
 
     <!-- Profile card always visible at top -->
     <app-profile-card
@@ -56,6 +63,11 @@
         [loading]="loadingHouseholds"
         (householdsChanged)="onHouseholdsChanged()">
       </app-household-list>
+    </ng-container>
+
+    <!-- ── SuperAdmin tab ───────────────────────────────────────────────── -->
+    <ng-container *ngIf="activeTab === 'superadmin' && isSuperadmin">
+      <app-superadmin-panel></app-superadmin-panel>
     </ng-container>
 
   </main>

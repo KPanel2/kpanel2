@@ -6,6 +6,18 @@ from app.kumpe_permissions import KPANEL_PROVIDER_NAME
 from app.models import User, UserIdentity
 from app.session_auth import now_utc
 
+DEFAULT_TIMEZONE = "America/Chicago"
+
+
+def _is_valid_timezone(tz: str) -> bool:
+    try:
+        from zoneinfo import ZoneInfo
+
+        ZoneInfo(tz)
+        return True
+    except (KeyError, ModuleNotFoundError):
+        return False
+
 
 def normalize_email(email: str) -> str:
     normalized = email.strip().lower()
@@ -27,6 +39,51 @@ def claims_display_name(claims: dict[str, Any], email: str) -> str:
         if isinstance(value, str) and value.strip():
             return value.strip()
     return email.split("@")[0] or email
+
+
+def claims_custom_data(claims: dict[str, Any]) -> dict[str, Any]:
+    raw = claims.get("custom_data")
+    if not isinstance(raw, dict):
+        raw = claims.get("customData")
+    return raw if isinstance(raw, dict) else {}
+
+
+def claims_timezone(claims: dict[str, Any]) -> str | None:
+    timezone = claims_custom_data(claims).get("timezone")
+    if isinstance(timezone, str) and timezone.strip():
+        return timezone.strip()
+    return None
+
+
+def sync_user_profile_from_claims(user: User, claims: dict[str, Any], db: Session) -> User:
+    """Mirror KumpeCloud Auth profile fields onto the local user record."""
+    changed = False
+
+    try:
+        email = claims_email(claims)
+    except ValueError:
+        email = user.email
+    else:
+        if user.email != email:
+            user.email = email
+            changed = True
+
+    display_name = claims_display_name(claims, email)
+    if user.display_name != display_name:
+        user.display_name = display_name
+        changed = True
+
+    timezone = claims_timezone(claims)
+    if timezone is not None and _is_valid_timezone(timezone) and user.timezone != timezone:
+        user.timezone = timezone
+        changed = True
+
+    if changed:
+        user.updated_at = now_utc()
+        db.commit()
+        db.refresh(user)
+
+    return user
 
 
 def resolve_user_from_claims(claims: dict[str, Any], db: Session) -> User | None:

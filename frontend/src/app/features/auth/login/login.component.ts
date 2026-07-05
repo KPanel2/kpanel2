@@ -5,14 +5,13 @@ import { Router } from '@angular/router';
 
 import { AuthService } from '../../../core/services/auth.service';
 import { AuthDebugPanelComponent } from '../auth-debug-panel/auth-debug-panel.component';
-import { TimezoneSelectComponent } from '../../../shared/components/timezone-select/timezone-select.component';
 import { SessionState } from '../../../core/models/session.model';
 import { environment, isOidcConfigured } from '../../../../environments/environment';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, FormsModule, TimezoneSelectComponent, AuthDebugPanelComponent],
+  imports: [CommonModule, FormsModule, AuthDebugPanelComponent],
   templateUrl: './login.component.html',
   styleUrls: ['./login.component.scss'],
 })
@@ -22,13 +21,15 @@ export class LoginComponent implements OnInit {
   loggingOut = false;
   error = '';
   devEmail = '';
-
-  displayName = '';
-  timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  accountCenterProfileUrl = '';
 
   constructor(private auth: AuthService, private router: Router) {}
 
   ngOnInit(): void {
+    if (isOidcConfigured()) {
+      this.accountCenterProfileUrl = this.auth.accountCenterProfileUrl();
+    }
+
     this.auth.session$.subscribe(s => {
       this.session = s;
       if (s?.status === 'authenticated') {
@@ -77,10 +78,9 @@ export class LoginComponent implements OnInit {
   }
 
   createAccount(): void {
-    if (!this.displayName.trim() || !this.timezone) return;
     this.loading = true;
     this.error = '';
-    this.auth.createAccount(this.displayName.trim(), this.timezone).subscribe({
+    this.auth.createAccount().subscribe({
       next: () => this.auth.loadSession().subscribe(),
       error: (e: Error) => {
         this.error = e.message;

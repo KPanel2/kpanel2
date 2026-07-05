@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db_session
 from app.kumpe_auth_config import settings
-from app.kumpe_permissions import extract_api_permissions, has_permission
+from app.kumpe_permissions import Permissions, extract_api_permissions, has_permission
 from app.kumpe_token import merge_profile_claims, validate_access_token, validate_id_token
 from app.models import User
 from app.security_flag_access import evaluate_security_flag_access
@@ -106,7 +106,27 @@ def require_authenticated(
 def require_user(auth: AuthContext = Depends(get_auth_context)) -> tuple[AuthContext, User]:
     if auth.user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
+    if not auth.user.is_active and not auth.dev_mode:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is deactivated")
     return auth, auth.user
+
+
+def require_superadmin(
+    auth: AuthContext = Depends(get_auth_context),
+    x_security_flags_token: str | None = Header(default=None, alias=SECURITY_FLAGS_TOKEN_HEADER),
+) -> AuthContext:
+    if auth.dev_mode:
+        return auth
+
+    _enforce_security_flags_or_raise(auth, x_security_flags_token)
+
+    permissions = extract_api_permissions(auth.claims.get("scope"))
+    if Permissions.SUPERADMIN not in permissions:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Missing required permission: kpanel:superadmin",
+        )
+    return auth
 
 
 def require_permission(permission: str):

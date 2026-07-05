@@ -10,14 +10,22 @@ from app.models import DeviceRegistration, HouseholdMember, HouseholdUrl, User
 from app.serializers import serialize_device
 from app.session_auth import now_utc
 from app.session_service import build_session_state, resolve_user_permissions
-from app.user_service import claims_display_name, claims_email, ensure_identity_for_user
+from app.user_service import (
+    DEFAULT_TIMEZONE,
+    claims_display_name,
+    claims_email,
+    claims_timezone,
+    ensure_identity_for_user,
+    sync_user_profile_from_claims,
+)
 
 router = APIRouter(prefix="/api/v1/account", tags=["account"])
 
 
 class AccountCreateRequest(BaseModel):
-    display_name: str
-    timezone: str = "America/Chicago"
+    """Local account bootstrap — profile fields come from KumpeCloud Auth claims."""
+
+    pass
 
 
 class AccountProfileUpdateRequest(BaseModel):
@@ -110,12 +118,13 @@ def account_create(
         return build_session_state(auth, db, permissions)
 
     email = claims_email(auth.claims)
-    display_name = req.display_name.strip() or claims_display_name(auth.claims, email)
+    display_name = claims_display_name(auth.claims, email)
+    timezone = claims_timezone(auth.claims) or DEFAULT_TIMEZONE
 
     existing_user = db.query(User).filter(User.email == email).first()
     if existing_user is not None:
-        auth.user = existing_user
-        ensure_identity_for_user(existing_user, auth.claims, db)
+        auth.user = sync_user_profile_from_claims(existing_user, auth.claims, db)
+        ensure_identity_for_user(auth.user, auth.claims, db)
         permissions = resolve_user_permissions(auth)
         return build_session_state(auth, db, permissions)
 
@@ -123,7 +132,7 @@ def account_create(
     user = User(
         email=email,
         display_name=display_name,
-        timezone=_validate_timezone(req.timezone.strip() or "America/Chicago"),
+        timezone=_validate_timezone(timezone),
         created_at=timestamp,
         updated_at=timestamp,
         is_active=True,
@@ -146,18 +155,17 @@ def account_update_profile(
     db: Session = Depends(get_db_session),
 ) -> dict:
     auth, user = auth_user
-    updated = False
-    if req.timezone is not None:
+    if auth.dev_mode and req.timezone is not None:
         user.timezone = _validate_timezone(req.timezone.strip())
-        updated = True
+        user.updated_at = now_utc()
+        db.commit()
+        permissions = resolve_user_permissions(auth)
+        return build_session_state(auth, db, permissions)
 
-    if not updated:
-        raise HTTPException(status_code=400, detail="No editable fields were provided")
-
-    user.updated_at = now_utc()
-    db.commit()
-    permissions = resolve_user_permissions(auth)
-    return build_session_state(auth, db, permissions)
+    raise HTTPException(
+        status_code=400,
+        detail="Profile is managed in KumpeCloud Auth. Use the Account Center to update your profile.",
+    )
 
 
 @router.get("/devices")

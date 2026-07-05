@@ -12,6 +12,7 @@ export const environment = {
     organizationId: '' as string,
     apiPermissions: [] as string[],
     secondaryPermissions: [] as string[],
+    elevatedPermissions: [] as string[],
   },
   backendUrl: '',
 };

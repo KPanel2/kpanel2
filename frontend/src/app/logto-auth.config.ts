@@ -21,6 +21,7 @@ export function buildSignInScopeList(apiPermissionScopes: string[] = []): string
   return withReservedScopes([
     UserScope.Email,
     UserScope.Profile,
+    UserScope.CustomData,
     UserScope.Roles,
     ...apiPermissionScopes,
   ]).split(' ').filter(Boolean);
