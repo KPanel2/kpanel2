@@ -16,6 +16,7 @@ from app.auth_routes import router as auth_router
 from app.superadmin_routes import router as superadmin_router
 from app.client_updates import build_update_policy, get_latest_for_channel
 from app.db import Base, engine, get_db_session
+from app.device_actions import ack_device_action as record_device_action_ack
 from app.models import DeviceRegistration, Household, HouseholdMember, HouseholdUrl, Registration, Room, User
 from app.security import issue_device_token
 from app.session_auth import now_utc
@@ -400,6 +401,7 @@ def record_update_event(
     return {"status": "recorded"}
 
 
+@app.post("/api/v1/devices/{device_id}/actions/ack")
 def ack_device_action(
     device_id: str,
     req: DeviceActionAckRequest,
@@ -407,22 +409,15 @@ def ack_device_action(
     x_device_token: str | None = Header(default=None),
 ) -> dict:
     require_device_access(device_id, x_device_token)
-    registration_code = req.registration_code.strip().upper()
-    device = db.get(DeviceRegistration, registration_code)
-    if device is None or device.device_id != device_id:
-        raise HTTPException(status_code=404, detail="Device not found")
-
-    action = req.action.strip().lower()
-    if device.pending_action and device.pending_action == action:
-        device.pending_action = None
-        device.pending_action_requested_at = None
-
-    device.last_action = action
-    device.last_action_status = req.status.strip().lower()
-    device.last_action_at = now_utc()
-    device.updated_at = now_utc()
-    db.commit()
-    return {"status": "acknowledged"}
+    result = record_device_action_ack(
+        db,
+        device_id=device_id,
+        registration_code=req.registration_code,
+        action=req.action,
+        status=req.status,
+        now=now_utc(),
+    )
+    return {"status": result.status}
 
 
 @app.get("/api/v1/devices/{device_id}/config")

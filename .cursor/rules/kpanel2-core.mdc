@@ -1,0 +1,35 @@
+---
+description: Core TDD, DRY, SOLID, and coverage requirements for KPanel2
+alwaysApply: true
+---
+
+# KPanel2 Core Standards
+
+Read `AGENTS.md` for full repo context. These rules are mandatory on every change.
+
+## TDD — non-negotiable
+
+1. Write failing tests first, then implement.
+2. Never add production logic without tests.
+3. Run the relevant suite before finishing: `pytest` (backend/client) or `npm test -- --no-watch --browsers=ChromeHeadless --code-coverage` (frontend).
+
+## Coverage — 90% minimum, 100% preferred
+
+- All **new or changed** code must reach ≥ 90% line coverage; aim for 100% on services and pure functions.
+- If coverage is low, add tests — never skip testing to ship faster.
+
+## DRY
+
+- Reuse `backend/tests/factories.py`, `conftest.py` fixtures, and existing helpers.
+- Extract repeated setup; avoid copy-pasted seed/assert blocks.
+
+## SOLID
+
+- **Routes/components**: HTTP/UI only — delegate to services.
+- **Services** (`device_actions.py`, `user_service.py`): business logic, normalization, validation.
+- **Inject dependencies** (DB session, API client, subprocess runner) for testability.
+- **Single responsibility** per module; extend via new functions, not tangled conditionals.
+
+## Scope
+
+- Minimal diffs; match existing conventions; no commits/PRs/docs unless asked.

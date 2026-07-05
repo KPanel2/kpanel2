@@ -1,0 +1,30 @@
+---
+description: Client-system Python TDD and dependency injection conventions
+globs: client-system/**/*
+alwaysApply: false
+---
+
+# Client System Python
+
+## TDD workflow
+
+1. Write tests in `client-system/tests/` before changing `kpanel_client/`.
+2. Run: `pytest` from `client-system/`
+
+## Testability pattern
+
+Inject side effects instead of calling them directly:
+
+```python
+# ✅ testable — pass runner and api
+run_pending_action(api, device_id=..., registration_code=..., action=..., runner=...)
+
+# ❌ untestable — hard-coded subprocess/system calls inside logic
+```
+
+Use fakes like `FakeApi` in tests. See `test_pending_actions.py`.
+
+## Coverage
+
+- ≥ 90% on new/changed code; 100% preferred for action handling and state logic.
+- Hardware paths (nmcli, systemd, Tkinter) stay behind injectable boundaries.

@@ -1,0 +1,37 @@
+---
+description: Backend Python testing and layering conventions
+globs: backend/**/*
+alwaysApply: false
+---
+
+# Backend Python
+
+## TDD workflow
+
+```python
+# 1. Red — test first (backend/tests/)
+def test_queue_device_action_rejects_unknown(db_session):
+    device = seed_device(db_session, ...)
+    with pytest.raises(HTTPException):
+        queue_device_action(device, "shutdown", now=utcnow())
+
+# 2. Green — implement in app/ service module
+# 3. Refactor — keep tests green
+```
+
+## Test infrastructure
+
+- Fixtures: `client`, `db_session` from `tests/conftest.py`
+- Seed data: `seed_user`, `seed_device` from `tests/factories.py`
+- Parametrize normalization/edge cases with `@pytest.mark.parametrize`
+- Coverage: `pytest` (configured in `pytest.ini` with `--cov=app`)
+
+## Layering
+
+```
+main.py / account_routes.py  →  app/*_service.py, device_actions.py  →  models.py
+```
+
+- Pure functions for normalization/validation belong in service modules.
+- Raise `HTTPException` from services; routes stay thin.
+- Never query MariaDB in tests — SQLite in-memory only.

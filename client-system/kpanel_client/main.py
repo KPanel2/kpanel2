@@ -7,6 +7,7 @@ from kpanel_client.config import ClientConfig
 from kpanel_client.device_state import generate_registration_code, load_or_create_state, persist_state
 from kpanel_client.hotspot import start_hotspot, stop_hotspot
 from kpanel_client.network import has_internet, is_url_reachable
+from kpanel_client.pending_actions import CommandResult, run_pending_action
 from kpanel_client.ui import (
     get_kiosk_url,
     hide_registration_prompt,
@@ -41,38 +42,22 @@ def _apply_timezone(timezone: str) -> None:
         print(f"Failed to set timezone to {timezone}: {exc}")
 
 
+def _default_command_runner(command: list[str]) -> CommandResult:
+    result = subprocess.run(command, check=False)
+    return CommandResult(returncode=result.returncode)
+
+
 def _run_pending_action(api: KPanelApiClient, cfg: ClientConfig, registration_code: str, action: str) -> None:
-    normalized = (action or "").strip().lower()
-    if normalized not in {"update", "reboot"}:
-        return
-
-    if normalized == "update":
-        api.ack_device_action(
-            cfg.device_id,
-            registration_code,
-            action="update",
-            status="started",
-        )
-        result = subprocess.run(
-            ["sh", "-lc", "apt-get update && apt-get install -y --only-upgrade --allow-change-held-packages kpanel-client"],
-            check=False,
-        )
-        status = "completed" if result.returncode == 0 else "failed"
-        api.ack_device_action(
-            cfg.device_id,
-            registration_code,
-            action="update",
-            status=status,
-        )
-        return
-
-    api.ack_device_action(
-        cfg.device_id,
-        registration_code,
-        action="reboot",
-        status="started",
+    run_pending_action(
+        api,
+        device_id=cfg.device_id,
+        registration_code=registration_code,
+        action=action,
+        runner=_default_command_runner,
+        on_reboot_ack_failed=lambda: print(
+            "Failed to acknowledge reboot action; skipping reboot to avoid loop"
+        ),
     )
-    subprocess.run(["systemctl", "reboot"], check=False)
 
 
 def run() -> None:
