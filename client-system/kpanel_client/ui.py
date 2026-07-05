@@ -11,6 +11,8 @@ from kpanel_client.brand_ui import branded_action_dialog, branded_info_dialog
 
 _registration_overlay_proc: Optional[subprocess.Popen] = None
 _registration_overlay_key: tuple[str, str, str] | None = None
+_offline_overlay_proc: Optional[subprocess.Popen] = None
+_offline_overlay_url: str | None = None
 _kiosk_proc: Optional[subprocess.Popen] = None
 _kiosk_url: str | None = None
 
@@ -42,6 +44,53 @@ def _open_network_tools() -> bool:
 
 def hide_registration_prompt() -> None:
     _stop_registration_overlay()
+
+
+def _stop_offline_overlay() -> None:
+    global _offline_overlay_proc, _offline_overlay_url
+    if _offline_overlay_proc and _offline_overlay_proc.poll() is None:
+        _offline_overlay_proc.terminate()
+        try:
+            _offline_overlay_proc.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            _offline_overlay_proc.kill()
+    _offline_overlay_proc = None
+    _offline_overlay_url = None
+
+
+def hide_service_offline_prompt() -> None:
+    _stop_offline_overlay()
+
+
+def show_service_offline_prompt(configured_url: str) -> None:
+    global _offline_overlay_proc, _offline_overlay_url
+
+    normalized_url = (configured_url or "").strip()
+    if not normalized_url:
+        return
+
+    if (
+        _offline_overlay_proc
+        and _offline_overlay_proc.poll() is None
+        and _offline_overlay_url == normalized_url
+    ):
+        return
+
+    _stop_offline_overlay()
+
+    cmd = [
+        sys.executable,
+        "-m",
+        "kpanel_client.offline_overlay",
+        "--url",
+        normalized_url,
+    ]
+    _offline_overlay_proc = subprocess.Popen(cmd)
+    _offline_overlay_url = normalized_url
+
+
+def get_kiosk_url() -> str | None:
+    return _kiosk_url
 
 
 def is_kiosk_running() -> bool:

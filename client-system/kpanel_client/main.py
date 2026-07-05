@@ -6,14 +6,17 @@ from kpanel_client.api import KPanelApiClient
 from kpanel_client.config import ClientConfig
 from kpanel_client.device_state import generate_registration_code, load_or_create_state, persist_state
 from kpanel_client.hotspot import start_hotspot, stop_hotspot
-from kpanel_client.network import has_internet
+from kpanel_client.network import has_internet, is_url_reachable
 from kpanel_client.ui import (
+    get_kiosk_url,
     hide_registration_prompt,
+    hide_service_offline_prompt,
     is_kiosk_running,
     show_api_unreachable_prompt,
     launch_kiosk,
     show_hotspot_prompt,
     show_registration_prompt,
+    show_service_offline_prompt,
     stop_kiosk,
     show_token_reset_prompt,
     show_wifi_setup_prompt,
@@ -87,13 +90,21 @@ def run() -> None:
         time.sleep(2)
 
     while True:
-        online = has_internet(cfg.internet_check_url)
-        if not online:
-            hide_registration_prompt()
-            stop_kiosk()
-            show_wifi_setup_prompt()
-            time.sleep(cfg.poll_interval_sec)
-            continue
+        kiosk_url = get_kiosk_url()
+        if kiosk_url and is_kiosk_running():
+            if is_url_reachable(kiosk_url):
+                hide_service_offline_prompt()
+            else:
+                show_service_offline_prompt(kiosk_url)
+        else:
+            hide_service_offline_prompt()
+            online = has_internet(cfg.internet_check_url)
+            if not online:
+                hide_registration_prompt()
+                stop_kiosk()
+                show_wifi_setup_prompt()
+                time.sleep(cfg.poll_interval_sec)
+                continue
 
         if hotspot_started:
             stop_hotspot(cfg.hotspot_iface)
