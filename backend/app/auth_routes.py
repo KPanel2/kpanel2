@@ -7,7 +7,7 @@ from app.db import get_db_session
 from app.kumpe_auth import SECURITY_FLAGS_TOKEN_HEADER, AuthContext, get_optional_auth_context
 from app.kumpe_auth_config import settings as kumpe_settings
 from app.kumpe_permissions import ELEVATED_KPANEL_PERMISSIONS
-from app.security_flag_access import build_auth_debug, evaluate_security_flag_access
+from app.security_flag_access import evaluate_security_flag_access
 from app.session_service import (
     build_session_state,
     build_unauthenticated_state,
@@ -27,7 +27,6 @@ def auth_config() -> dict[str, Any]:
         "secondaryApiResource": kumpe_settings.secondary_api_resource,
         "apiResources": kumpe_settings.api_resources,
         "devAuthEnabled": kumpe_settings.dev_auth_enabled,
-        "authDebugEnabled": kumpe_settings.auth_debug_enabled,
     }
 
 
@@ -52,26 +51,15 @@ def auth_session(
     if auth is None:
         return build_unauthenticated_state()
 
-    debug = (
-        build_auth_debug(dev_mode=auth.dev_mode, security_flags_token=x_security_flags_token)
-        if kumpe_settings.auth_debug_enabled
-        else None
-    )
-
     denied = evaluate_security_flag_access(
         dev_mode=auth.dev_mode,
         security_flags_token=x_security_flags_token,
     )
     if denied is not None:
-        if debug is not None:
-            denied["debug"] = debug
         return denied
 
     permissions = resolve_user_permissions(auth)
-    session = build_session_state(auth, db, permissions)
-    if debug is not None:
-        session["debug"] = debug
-    return session
+    return build_session_state(auth, db, permissions)
 
 
 @router.post("/logout")

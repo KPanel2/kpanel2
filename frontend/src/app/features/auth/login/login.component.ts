@@ -4,14 +4,13 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 
 import { AuthService } from '../../../core/services/auth.service';
-import { AuthDebugPanelComponent } from '../auth-debug-panel/auth-debug-panel.component';
 import { SessionState } from '../../../core/models/session.model';
 import { environment, isOidcConfigured } from '../../../../environments/environment';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, FormsModule, AuthDebugPanelComponent],
+  imports: [CommonModule, FormsModule],
   templateUrl: './login.component.html',
   styleUrls: ['./login.component.scss'],
 })

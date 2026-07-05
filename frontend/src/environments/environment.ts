@@ -1,7 +1,6 @@
 export const environment = {
   production: false,
   devAuthEnabled: false,
-  authDebugEnabled: false,
   logto: {
     endpoint: 'https://auth.stage.kumpe.app',
     appId: '',

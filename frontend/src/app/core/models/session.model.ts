@@ -47,6 +47,4 @@ export interface SessionState {
   user?: User;
   pending?: PendingAuth;
   message?: string;
-  /** Present when KPANEL_AUTH_DEBUG_ENABLED — server-side security-flag evaluation. */
-  debug?: Record<string, unknown>;
 }

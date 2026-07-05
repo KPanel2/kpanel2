@@ -13,51 +13,6 @@ from app.security_flags import (
 )
 
 
-def build_auth_debug(
-    *,
-    dev_mode: bool,
-    security_flags_token: str | None,
-) -> dict[str, Any]:
-    """Server-side security-flag evaluation details for dev troubleshooting."""
-    info: dict[str, Any] = {
-        "devModeBypass": dev_mode,
-        "secondaryApiResource": kumpe_settings.secondary_api_resource,
-        "secondaryTokenPresent": bool(security_flags_token),
-        "secondaryTokenValidation": None,
-        "securityFlagScopes": [],
-        "blockingFlags": [],
-        "wouldDeny": False,
-    }
-
-    if dev_mode:
-        info["note"] = "Dev email bypass skips security-flag checks."
-        return info
-
-    if not security_flags_token:
-        info["note"] = "No X-SecurityFlags-Token header — treated as no flags (allowed)."
-        return info
-
-    try:
-        claims = validate_access_token(
-            security_flags_token,
-            audience=kumpe_settings.secondary_api_resource,
-        )
-    except HTTPException as exc:
-        info["secondaryTokenValidation"] = str(exc.detail)
-        info["note"] = "Invalid secondary token — treated as no flags (allowed)."
-        return info
-
-    scopes = extract_security_flag_permissions(claims.get("scope"))
-    blocked = find_blocking_security_flags(scopes)
-    info["secondaryTokenValidation"] = "ok"
-    info["securityFlagScopes"] = scopes
-    info["blockingFlags"] = blocked
-    info["wouldDeny"] = bool(blocked)
-    info["secondaryTokenAud"] = claims.get("aud")
-    info["secondaryTokenSub"] = claims.get("sub")
-    return info
-
-
 def evaluate_security_flag_access(
     *,
     dev_mode: bool,

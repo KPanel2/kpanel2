@@ -7,7 +7,6 @@ import { HouseholdService } from '../../core/services/household.service';
 import { ProfileCardComponent } from './profile-card/profile-card.component';
 import { DeviceListComponent } from '../devices/device-list/device-list.component';
 import { ClaimDeviceComponent } from '../devices/claim-device/claim-device.component';
-import { AuthDebugPanelComponent } from '../auth/auth-debug-panel/auth-debug-panel.component';
 import { HouseholdListComponent } from '../households/household-list/household-list.component';
 import { SuperadminPanelComponent } from '../superadmin/superadmin-panel.component';
 import { User, Device } from '../../core/models/session.model';
@@ -25,7 +24,6 @@ import { isSuperadmin } from '../../core/utils/permissions';
     ClaimDeviceComponent,
     HouseholdListComponent,
     SuperadminPanelComponent,
-    AuthDebugPanelComponent,
   ],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.scss'],

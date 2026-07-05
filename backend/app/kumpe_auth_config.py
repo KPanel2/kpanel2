@@ -23,10 +23,6 @@ class KumpeAuthSettings:
             os.getenv("KPANEL_SECONDARY_API_RESOURCE", "https://securityflags.kumpeapps.com")
         )
         self.dev_auth_enabled = os.getenv("KPANEL_DEV_AUTH_ENABLED", "false").lower() == "true"
-        auth_debug_default = os.getenv("KPANEL_DEV_AUTH_ENABLED", "false")
-        self.auth_debug_enabled = (
-            os.getenv("KPANEL_AUTH_DEBUG_ENABLED", auth_debug_default).lower() == "true"
-        )
 
         oauth_override = os.getenv("KPANEL_OAUTH_PERMISSIONS", "")
         self.oauth_permissions = (
