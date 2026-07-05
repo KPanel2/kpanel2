@@ -1,0 +1,29 @@
+---
+description: Frontend Angular TDD and coverage conventions
+globs: frontend/**/*
+alwaysApply: false
+---
+
+# Frontend Angular
+
+## TDD workflow
+
+1. Create/update `.spec.ts` beside the source file **before** implementing logic.
+2. Mock `HttpClient`, auth services, and router — no live API calls.
+3. Run: `npm test -- --no-watch --browsers=ChromeHeadless --code-coverage`
+
+## Structure
+
+- Features: `src/app/features/`
+- Shared services: `src/app/core/services/`
+- Follow patterns in `auth-flow.service.spec.ts` and `login.component.spec.ts`
+
+## Coverage
+
+- New services, components with logic, and utilities require specs.
+- Target 100% on new logic; minimum 90% on changed lines.
+
+## SOLID
+
+- Components handle presentation; services hold API/auth logic.
+- Inject dependencies via Angular DI; avoid fat components.

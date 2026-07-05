@@ -3,6 +3,7 @@ from pydantic import BaseModel, HttpUrl, field_validator
 from sqlalchemy.orm import Session
 
 from app.db import get_db_session
+from app.device_actions import queue_device_action
 from app.households import resolve_device_url
 from app.kumpe_auth import AuthContext, require_authenticated, require_user_with_permission
 from app.kumpe_permissions import Permissions
@@ -322,15 +323,9 @@ def account_device_action(
     db: Session = Depends(get_db_session),
 ) -> dict:
     _, user = auth_user
-    normalized_action = action.strip().lower()
-    if normalized_action not in {"update", "reboot"}:
-        raise HTTPException(status_code=400, detail="Unsupported action")
-
     device = _get_owned_device(registration_code, user, db)
     timestamp = now_utc()
-    device.pending_action = normalized_action
-    device.pending_action_requested_at = timestamp
-    device.updated_at = timestamp
+    normalized_action = queue_device_action(device, action, now=timestamp)
     db.commit()
     return {"status": "queued", "action": normalized_action, "device": serialize_device(device, db)}
 

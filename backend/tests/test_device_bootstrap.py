@@ -1,48 +1,6 @@
-from app.models import DeviceRegistration, User
+from app.models import DeviceRegistration
 from app.security import verify_device_token
-from tests.conftest import utcnow
-
-
-def _seed_user(db_session, *, user_id: int = 1) -> User:
-    timestamp = utcnow()
-    user = User(
-        id=user_id,
-        email="owner@example.com",
-        display_name="Owner",
-        timezone="America/Chicago",
-        created_at=timestamp,
-        updated_at=timestamp,
-    )
-    db_session.add(user)
-    db_session.commit()
-    return user
-
-
-def _seed_device(
-    db_session,
-    *,
-    registration_code: str = "KPANEL-AAAAAA",
-    device_id: str = "kpanel-testdevice",
-    user_id: int | None = None,
-    display_name: str | None = None,
-    target_url: str | None = None,
-) -> DeviceRegistration:
-    timestamp = utcnow()
-    device = DeviceRegistration(
-        registration_code=registration_code,
-        device_id=device_id,
-        user_id=user_id,
-        display_name=display_name,
-        target_url=target_url,
-        claimed_at=timestamp if user_id is not None else None,
-        last_seen_at=timestamp,
-        created_at=timestamp,
-        updated_at=timestamp,
-    )
-    db_session.add(device)
-    db_session.commit()
-    db_session.refresh(device)
-    return device
+from tests.factories import seed_device, seed_user
 
 
 def test_bootstrap_creates_new_device(client):
@@ -61,7 +19,7 @@ def test_bootstrap_creates_new_device(client):
 
 
 def test_bootstrap_existing_device_same_code_refreshes_token(client, db_session):
-    _seed_device(db_session, registration_code="KPANEL-SAME01", device_id="kpanel-same")
+    seed_device(db_session, registration_code="KPANEL-SAME01", device_id="kpanel-same")
 
     response = client.post(
         "/api/v1/devices/bootstrap",
@@ -75,8 +33,8 @@ def test_bootstrap_existing_device_same_code_refreshes_token(client, db_session)
 
 
 def test_bootstrap_claimed_device_mismatched_code_returns_409(client, db_session):
-    _seed_user(db_session)
-    device = _seed_device(
+    seed_user(db_session)
+    device = seed_device(
         db_session,
         registration_code="KPANEL-CLAIM1",
         device_id="kpanel-claimed",
@@ -104,7 +62,7 @@ def test_bootstrap_claimed_device_mismatched_code_returns_409(client, db_session
 
 
 def test_bootstrap_unclaimed_device_rotates_registration_code(client, db_session):
-    device = _seed_device(
+    device = seed_device(
         db_session,
         registration_code="KPANEL-OLD001",
         device_id="kpanel-unclaimed",
@@ -131,7 +89,7 @@ def test_bootstrap_unclaimed_device_rotates_registration_code(client, db_session
 
 
 def test_bootstrap_new_device_replaces_unclaimed_orphan_code(client, db_session):
-    orphan = _seed_device(
+    orphan = seed_device(
         db_session,
         registration_code="KPANEL-ORPHAN",
         device_id="kpanel-other",
@@ -149,8 +107,8 @@ def test_bootstrap_new_device_replaces_unclaimed_orphan_code(client, db_session)
 
 
 def test_bootstrap_rejects_code_claimed_by_other_device(client, db_session):
-    _seed_user(db_session)
-    _seed_device(
+    seed_user(db_session)
+    seed_device(
         db_session,
         registration_code="KPANEL-TAKEN1",
         device_id="kpanel-owner",
@@ -169,12 +127,12 @@ def test_bootstrap_rejects_code_claimed_by_other_device(client, db_session):
 
 
 def test_bootstrap_unclaimed_device_replaces_conflicting_orphan(client, db_session):
-    _seed_device(
+    seed_device(
         db_session,
         registration_code="KPANEL-OLDORPH",
         device_id="kpanel-unclaimed",
     )
-    _seed_device(
+    seed_device(
         db_session,
         registration_code="KPANEL-NEWORPH",
         device_id="kpanel-other",
@@ -191,8 +149,8 @@ def test_bootstrap_unclaimed_device_replaces_conflicting_orphan(client, db_sessi
 
 
 def test_bootstrap_claimed_device_reports_configured_state(client, db_session):
-    _seed_user(db_session)
-    _seed_device(
+    seed_user(db_session)
+    seed_device(
         db_session,
         registration_code="KPANEL-READY1",
         device_id="kpanel-ready",
@@ -214,7 +172,7 @@ def test_bootstrap_claimed_device_reports_configured_state(client, db_session):
 
 
 def test_bootstrap_strips_and_uppercases_registration_code(client, db_session):
-    _seed_device(db_session, registration_code="KPANEL-NORM01", device_id="kpanel-norm")
+    seed_device(db_session, registration_code="KPANEL-NORM01", device_id="kpanel-norm")
 
     response = client.post(
         "/api/v1/devices/bootstrap",
@@ -226,13 +184,13 @@ def test_bootstrap_strips_and_uppercases_registration_code(client, db_session):
 
 
 def test_bootstrap_unclaimed_rotation_rejects_code_claimed_elsewhere(client, db_session):
-    _seed_user(db_session)
-    rotating = _seed_device(
+    seed_user(db_session)
+    rotating = seed_device(
         db_session,
         registration_code="KPANEL-ROTOLD",
         device_id="kpanel-rotating",
     )
-    _seed_device(
+    seed_device(
         db_session,
         registration_code="KPANEL-TARGET",
         device_id="kpanel-claimed-other",
