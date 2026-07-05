@@ -73,6 +73,10 @@ fi
 
 export PYTHONPATH="/opt/kpanel-client${PYTHONPATH:+:$PYTHONPATH}"
 
+if [[ -n "${KPANEL_CHROMIUM_FLAGS:-}" ]]; then
+	export KPANEL_CHROMIUM_FLAGS
+fi
+
 if [[ -f /etc/kpanel/debug-shell ]]; then
 	echo "Debug shell flag present; skipping kiosk launcher"
 	if command -v xterm >/dev/null 2>&1; then

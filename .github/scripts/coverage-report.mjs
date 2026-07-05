@@ -253,13 +253,17 @@ if (inputPath.endsWith('.log')) {
 
 let prCoverage = { available: false };
 if (options.diffBase && options.diffFormat && options.diffCoveragePath) {
-  prCoverage = computePrCoverage({
-    baseRef: options.diffBase,
-    format: options.diffFormat,
-    coveragePath: options.diffCoveragePath,
-    sourceRoot: options.diffSourceRoot ?? undefined,
-    repoPathPrefix: options.diffRepoPathPrefix,
-  });
+  try {
+    prCoverage = computePrCoverage({
+      baseRef: options.diffBase,
+      format: options.diffFormat,
+      coveragePath: options.diffCoveragePath,
+      sourceRoot: options.diffSourceRoot ?? undefined,
+      repoPathPrefix: options.diffRepoPathPrefix,
+    });
+  } catch (error) {
+    warn(`${label} PR diff coverage failed: ${error.message}`);
+  }
 }
 
 const result = buildResult(label, threshold, metrics, prCoverage);

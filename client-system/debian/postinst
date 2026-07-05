@@ -7,6 +7,11 @@ SERVICE_NAME=kpanel-client.service
 LAUNCHER_NAME=kpanel-client-launcher.sh
 MODE_HELPER_NAME=kpanel-set-mode
 DEFAULTS_DIR=/etc/default
+
+is_pi_appliance() {
+	[[ -x /usr/local/sbin/kpanel-pi-self-heal ]] || [[ -f /etc/profile.d/kpanel-startx.sh ]]
+}
+
 resolve_runtime_owner() {
 	local service_user=""
 
@@ -22,6 +27,38 @@ resolve_runtime_owner() {
 	done
 
 	printf '%s\n' root
+}
+
+fix_runtime_home_permissions() {
+	local home_dir=""
+
+	home_dir="$(getent passwd "$RUNTIME_OWNER" | cut -d: -f6 || true)"
+	if [[ -z "$home_dir" || ! -e "$home_dir" ]]; then
+		return 0
+	fi
+
+	chown -R "$RUNTIME_OWNER:$RUNTIME_OWNER" "$home_dir"
+	install -d -m 700 -o "$RUNTIME_OWNER" -g "$RUNTIME_OWNER" "$home_dir/.cache"
+}
+
+ensure_openbox_xdg_deps() {
+	if ! dpkg -s python3-xdg >/dev/null 2>&1; then
+		apt-get install -y python3-xdg || true
+	fi
+}
+
+configure_client_service() {
+	systemctl daemon-reload
+	if is_pi_appliance; then
+		systemctl disable "$SERVICE_NAME" --now 2>/dev/null || true
+		if [[ -x /usr/local/sbin/kpanel-pi-self-heal ]]; then
+			/usr/local/sbin/kpanel-pi-self-heal || true
+		fi
+		return 0
+	fi
+
+	systemctl enable "$SERVICE_NAME"
+	systemctl restart "$SERVICE_NAME"
 }
 
 mkdir -p "$INSTALL_DIR"
@@ -55,6 +92,9 @@ if [[ "${KPANEL_SKIP_APT_REPO:-}" != "1" ]]; then
 	fi
 fi
 
+ensure_openbox_xdg_deps
+fix_runtime_home_permissions
+
 # Grant the runtime user permission to set the system timezone without a password.
 SUDOERS_FILE="/etc/sudoers.d/kpanel-timedatectl"
 SUDOERS_TMP="${SUDOERS_FILE}.tmp"
@@ -67,6 +107,4 @@ else
 	echo "Warning: sudoers rule validation failed; KPanel timezone changes will not apply." >&2
 fi
 
-systemctl daemon-reload
-systemctl enable "$SERVICE_NAME"
-systemctl restart "$SERVICE_NAME"
+configure_client_service

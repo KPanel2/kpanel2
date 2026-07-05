@@ -249,6 +249,27 @@ def show_token_reset_prompt(registration_code: str) -> None:
         print(message)
 
 
+def _chromium_kiosk_flags(user_data_dir: str) -> list[str]:
+    configured = os.getenv("KPANEL_CHROMIUM_FLAGS")
+    if configured is not None and configured.strip():
+        extra_flags = shlex.split(configured.strip())
+    else:
+        # Recent Pi OS Chromium builds often render a black screen with --disable-gpu.
+        extra_flags = ["--disable-gpu-compositing", "--use-gl=egl"]
+
+    return [
+        "--kiosk",
+        "--incognito",
+        f"--user-data-dir={user_data_dir}",
+        "--no-first-run",
+        "--noerrdialogs",
+        "--disable-session-crashed-bubble",
+        "--disable-pinch",
+        "--overscroll-history-navigation=0",
+        *extra_flags,
+    ]
+
+
 def launch_kiosk(url: str) -> None:
     global _kiosk_proc, _kiosk_url
 
@@ -270,22 +291,8 @@ def launch_kiosk(url: str) -> None:
     browser_command = shutil.which("chromium") or shutil.which("chromium-browser") or "chromium-browser"
     user_data_dir = os.getenv("KPANEL_CHROMIUM_PROFILE_DIR", "/var/lib/kpanel-client/chromium-profile")
     os.makedirs(user_data_dir, exist_ok=True)
-    extra_flags = shlex.split(os.getenv("KPANEL_CHROMIUM_FLAGS", ""))
     _kiosk_proc = subprocess.Popen(
-        [
-            browser_command,
-            "--kiosk",
-            "--incognito",
-            f"--user-data-dir={user_data_dir}",
-            "--disable-gpu",
-            "--no-first-run",
-            "--noerrdialogs",
-            "--disable-session-crashed-bubble",
-            "--disable-pinch",
-            "--overscroll-history-navigation=0",
-            *extra_flags,
-            normalized_url,
-        ],
+        [browser_command, *_chromium_kiosk_flags(user_data_dir), normalized_url],
         start_new_session=True,
     )
     _kiosk_url = normalized_url

@@ -135,7 +135,6 @@ Wants=network-online.target
 Type=simple
 User=pi
 WorkingDirectory=/opt/kpanel-client
-Environment=KPANEL_DEVICE_ID=${HOSTNAME}
 Environment=KPANEL_STATE_PATH=/var/lib/kpanel-client/device-state.json
 ExecStart=/usr/local/bin/kpanel-client-launcher.sh
 StateDirectory=kpanel-client
@@ -234,4 +233,16 @@ exec /usr/local/bin/kpanel-xsession
 EOF
   chmod 755 "/home/$KPANEL_USER/.xsession"
   chown "$KPANEL_USER:$KPANEL_USER" "/home/$KPANEL_USER/.xsession"
+fi
+
+if id -u "$KPANEL_USER" >/dev/null 2>&1; then
+  home_dir="$(getent passwd "$KPANEL_USER" | cut -d: -f6 || true)"
+  if [[ -n "$home_dir" && -e "$home_dir" ]]; then
+    chown -R "$KPANEL_USER:$KPANEL_USER" "$home_dir"
+    install -d -m 700 -o "$KPANEL_USER" -g "$KPANEL_USER" "$home_dir/.cache"
+  fi
+fi
+
+if command -v systemctl >/dev/null 2>&1; then
+  systemctl disable kpanel-client.service --now 2>/dev/null || true
 fi

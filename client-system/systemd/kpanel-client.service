@@ -7,7 +7,6 @@ Wants=network-online.target
 Type=simple
 User=pi
 WorkingDirectory=/opt/kpanel-client
-Environment=KPANEL_DEVICE_ID=${HOSTNAME}
 Environment=KPANEL_STATE_PATH=/var/lib/kpanel-client/device-state.json
 ExecStart=/usr/local/bin/kpanel-client-launcher.sh
 StateDirectory=kpanel-client

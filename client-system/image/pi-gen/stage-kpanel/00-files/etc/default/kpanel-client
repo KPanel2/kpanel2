@@ -16,6 +16,11 @@ KPANEL_API_BASE_URL_OVERRIDE=
 # Example: KPANEL_PACKAGE_BASE_URL=https://releases.kumpe.app/kpanel-client
 KPANEL_PACKAGE_BASE_URL=
 
+# Optional Chromium flags for kiosk mode. Leave empty to use Pi-safe defaults
+# (--disable-gpu-compositing --use-gl=egl). Avoid --disable-gpu on recent Pi OS builds.
+# Example: KPANEL_CHROMIUM_FLAGS="--disable-gpu-compositing --use-gl=egl"
+KPANEL_CHROMIUM_FLAGS=
+
 # APT repository configuration used by mode switching helpers.
 # kpanel-set-mode maps prod->stable, stage->stage, dev->dev and rewrites
 # KPANEL_APT_SOURCE_LIST_PATH to point at the matching suite.
