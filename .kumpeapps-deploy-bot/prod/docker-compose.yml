@@ -11,7 +11,7 @@ services:
       - KPANEL_FRONTEND_BASE_URL=https://kpanel.kumpe.app
       - KPANEL_SESSION_SECRET=${KPANEL_SESSION_SECRET}
       - KPANEL_CORS_ORIGINS=https://kpanel.kumpe.app
-      - KPANEL_DB_HOST=rw.sql.pvt.kumpedns.us
+      - KPANEL_DB_HOST=172.24.0.10
       - KPANEL_DB_PORT=3306
       - KPANEL_DB_USER=${KPANEL_DB_USER}
       - KPANEL_DB_PASSWORD=${KPANEL_DB_PASSWORD}
