@@ -26,6 +26,13 @@ jobs:
     steps:
       - name: Check out source repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch base branch for PR diff coverage
+        if: github.event_name == 'pull_request'
+        working-directory: .
+        run: git fetch origin "${{ github.base_ref }}"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -49,7 +56,24 @@ jobs:
       - name: Report coverage
         if: always() && steps.test.outcome != 'cancelled'
         working-directory: .
-        run: node .github/scripts/coverage-report.mjs test-frontend.log "Frontend" 80 --json-out coverage-frontend.json
+        env:
+          DIFF_BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}
+        run: |
+          args=(
+            test-frontend.log
+            Frontend
+            80
+            --json-out coverage-frontend.json
+          )
+          if [ -n "$DIFF_BASE_REF" ]; then
+            args+=(
+              --diff-base "$DIFF_BASE_REF"
+              --diff-format karma-html
+              --diff-coverage-path frontend/coverage/kpanel-frontend
+              --diff-source-root frontend/src
+            )
+          fi
+          node .github/scripts/coverage-report.mjs "${args[@]}"
 
       - name: Comment coverage on pull request
         if: always() && github.event_name == 'pull_request' && steps.test.outcome != 'cancelled'

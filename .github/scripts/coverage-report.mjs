@@ -4,25 +4,71 @@
  * Never fails the workflow.
  *
  * Usage:
- *   node coverage-report.mjs <summary.json|test.log> <label> [threshold] [--json-out path]
+ *   node coverage-report.mjs <summary.json|test.log> <label> [threshold] [options]
+ *
+ * Options:
+ *   --json-out path
+ *   --diff-base ref
+ *   --diff-format pytest|karma-html
+ *   --diff-coverage-path path
+ *   --diff-source-root path
+ *   --diff-repo-path-prefix path
  */
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const args = process.argv.slice(2);
-const jsonOutIndex = args.indexOf('--json-out');
-const jsonOutPath = jsonOutIndex >= 0 ? args[jsonOutIndex + 1] : null;
-const positional = args.filter((_, index) => index !== jsonOutIndex && index !== jsonOutIndex + 1);
+import { computePrCoverage, roundPct } from './pr-diff-coverage.mjs';
 
-const [inputPath, label, thresholdArg = '80'] = positional;
-const threshold = Number(thresholdArg);
+function parseArgs(argv) {
+  const options = {
+    inputPath: null,
+    label: null,
+    threshold: 80,
+    jsonOut: null,
+    diffBase: process.env.DIFF_BASE_REF ?? null,
+    diffFormat: null,
+    diffCoveragePath: null,
+    diffSourceRoot: null,
+    diffRepoPathPrefix: '',
+  };
+
+  const positional = [];
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (arg === '--json-out') {
+      options.jsonOut = argv[index + 1];
+      index += 1;
+    } else if (arg === '--diff-base') {
+      options.diffBase = argv[index + 1];
+      index += 1;
+    } else if (arg === '--diff-format') {
+      options.diffFormat = argv[index + 1];
+      index += 1;
+    } else if (arg === '--diff-coverage-path') {
+      options.diffCoveragePath = argv[index + 1];
+      index += 1;
+    } else if (arg === '--diff-source-root') {
+      options.diffSourceRoot = argv[index + 1];
+      index += 1;
+    } else if (arg === '--diff-repo-path-prefix') {
+      options.diffRepoPathPrefix = argv[index + 1];
+      index += 1;
+    } else {
+      positional.push(arg);
+    }
+  }
+
+  [options.inputPath, options.label, options.threshold] = [
+    positional[0] ?? null,
+    positional[1] ?? null,
+    Number(positional[2] ?? options.threshold),
+  ];
+
+  return options;
+}
 
 function warn(message) {
   console.log(`::warning::${message}`);
-}
-
-function roundPct(value) {
-  return Math.round(Number(value) * 100) / 100;
 }
 
 function parseJsonCoverage(data) {
@@ -54,7 +100,23 @@ function formatPct(value) {
   return `${roundPct(value)}%`;
 }
 
-function buildResult(metrics) {
+function formatPrCoverage(prCoverage) {
+  if (!prCoverage?.available) {
+    return 'n/a';
+  }
+  if (prCoverage.noChanges) {
+    return 'No changed lines';
+  }
+  if (prCoverage.noCoverableChanges) {
+    return 'No coverable changes';
+  }
+  if (prCoverage.lines == null) {
+    return 'n/a';
+  }
+  return `${prCoverage.lines}%`;
+}
+
+function buildResult(label, threshold, metrics, prCoverage) {
   const lines = metrics.lines;
   if (lines == null || Number.isNaN(Number(lines))) {
     return {
@@ -63,10 +125,14 @@ function buildResult(metrics) {
       belowThreshold: false,
       parseError: true,
       metrics,
+      prCoverage,
     };
   }
 
   const roundedLines = roundPct(lines);
+  const prLines = prCoverage?.lines == null ? null : roundPct(prCoverage.lines);
+  const prBelowThreshold = prLines != null && prLines < threshold;
+
   return {
     label,
     threshold,
@@ -75,6 +141,9 @@ function buildResult(metrics) {
     statements: metrics.statements == null ? null : roundPct(metrics.statements),
     branches: metrics.branches == null ? null : roundPct(metrics.branches),
     functions: metrics.functions == null ? null : roundPct(metrics.functions),
+    prCoverage,
+    prLines,
+    prBelowThreshold,
     workflowUrl: process.env.GITHUB_SERVER_URL && process.env.GITHUB_REPOSITORY && process.env.GITHUB_RUN_ID
       ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
       : null,
@@ -95,12 +164,23 @@ function writeJobSummary(result) {
     return;
   }
 
-  const status = result.belowThreshold
+  const overallStatus = result.belowThreshold
     ? `⚠️ Below recommended minimum (${result.threshold}%)`
     : `✅ Meets recommended minimum (${result.threshold}%)`;
 
+  const prStatus = !result.prCoverage?.available
+    ? 'n/a'
+    : result.prCoverage.noChanges
+      ? 'No changed lines in this PR'
+      : result.prCoverage.noCoverableChanges
+        ? 'Changed lines are not coverable'
+        : result.prBelowThreshold
+          ? `⚠️ Below recommended minimum (${result.threshold}%)`
+          : `✅ Meets recommended minimum (${result.threshold}%)`;
+
   const rows = [
-    ['Lines', formatPct(result.lines)],
+    ['Overall lines', formatPct(result.lines)],
+    ['PR new code lines', formatPrCoverage(result.prCoverage)],
     ['Statements', formatPct(result.statements)],
     ['Branches', formatPct(result.branches)],
     ['Functions', formatPct(result.functions)],
@@ -113,7 +193,8 @@ function writeJobSummary(result) {
     `| --- | --- |`,
     ...rows.map(([metric, value]) => `| ${metric} | ${value} |`),
     '',
-    `**Status:** ${status}`,
+    `**Overall status:** ${overallStatus}`,
+    `**PR new code status:** ${prStatus}`,
     '',
   ].join('\n');
 
@@ -127,11 +208,23 @@ function emitWarnings(result) {
   }
 
   if (result.belowThreshold) {
-    warn(`${result.label} line coverage is ${result.lines}% (recommended minimum: ${result.threshold}%)`);
+    warn(`${result.label} overall line coverage is ${result.lines}% (recommended minimum: ${result.threshold}%)`);
   } else {
-    console.log(`${result.label} line coverage: ${result.lines}%`);
+    console.log(`${result.label} overall line coverage: ${result.lines}%`);
+  }
+
+  if (result.prBelowThreshold) {
+    warn(
+      `${result.label} PR new-code line coverage is ${result.prLines}% `
+      + `(recommended minimum: ${result.threshold}%)`,
+    );
+  } else if (result.prLines != null) {
+    console.log(`${result.label} PR new-code line coverage: ${result.prLines}%`);
   }
 }
+
+const options = parseArgs(process.argv.slice(2));
+const { inputPath, label, threshold } = options;
 
 if (!inputPath || !label) {
   warn('Coverage check skipped: missing input path or label');
@@ -158,10 +251,21 @@ if (inputPath.endsWith('.log')) {
   }
 }
 
-const result = buildResult(metrics);
+let prCoverage = { available: false };
+if (options.diffBase && options.diffFormat && options.diffCoveragePath) {
+  prCoverage = computePrCoverage({
+    baseRef: options.diffBase,
+    format: options.diffFormat,
+    coveragePath: options.diffCoveragePath,
+    sourceRoot: options.diffSourceRoot ?? undefined,
+    repoPathPrefix: options.diffRepoPathPrefix,
+  });
+}
+
+const result = buildResult(label, threshold, metrics, prCoverage);
 emitWarnings(result);
 writeJobSummary(result);
 
-if (jsonOutPath) {
-  writeFileSync(jsonOutPath, `${JSON.stringify(result, null, 2)}\n`);
+if (options.jsonOut) {
+  writeFileSync(options.jsonOut, `${JSON.stringify(result, null, 2)}\n`);
 }
