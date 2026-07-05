@@ -9,8 +9,10 @@ import { DeviceListComponent } from '../devices/device-list/device-list.componen
 import { ClaimDeviceComponent } from '../devices/claim-device/claim-device.component';
 import { AuthDebugPanelComponent } from '../auth/auth-debug-panel/auth-debug-panel.component';
 import { HouseholdListComponent } from '../households/household-list/household-list.component';
+import { SuperadminPanelComponent } from '../superadmin/superadmin-panel.component';
 import { User, Device } from '../../core/models/session.model';
 import { Household } from '../../core/models/household.model';
+import { isSuperadmin } from '../../core/utils/permissions';
 
 @Component({
   selector: 'app-dashboard',
@@ -22,6 +24,7 @@ import { Household } from '../../core/models/household.model';
     DeviceListComponent,
     ClaimDeviceComponent,
     HouseholdListComponent,
+    SuperadminPanelComponent,
     AuthDebugPanelComponent,
   ],
   templateUrl: './dashboard.component.html',
@@ -31,7 +34,8 @@ export class DashboardComponent implements OnInit {
   user: User | undefined;
   devices: Device[] = [];
   households: Household[] = [];
-  activeTab: 'devices' | 'households' = 'devices';
+  activeTab: 'devices' | 'households' | 'superadmin' = 'devices';
+  isSuperadmin = false;
   loadingDevices = true;
   loadingHouseholds = true;
 
@@ -45,6 +49,10 @@ export class DashboardComponent implements OnInit {
   ngOnInit(): void {
     this.auth.session$.subscribe(s => {
       this.user = s?.user;
+      this.isSuperadmin = isSuperadmin(s);
+      if (!this.isSuperadmin && this.activeTab === 'superadmin') {
+        this.activeTab = 'devices';
+      }
     });
     this.loadDevices();
     this.loadHouseholds();
@@ -85,7 +93,7 @@ export class DashboardComponent implements OnInit {
     this.loadDevices();
   }
 
-  setTab(tab: 'devices' | 'households'): void {
+  setTab(tab: 'devices' | 'households' | 'superadmin'): void {
     this.activeTab = tab;
   }
 

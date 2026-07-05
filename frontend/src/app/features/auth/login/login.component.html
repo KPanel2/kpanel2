@@ -59,22 +59,26 @@
         <p class="info-msg">
           Signed in as <strong>{{ pending.email }}</strong> via KumpeCloud Auth
         </p>
+        <div class="pending-profile">
+          <div class="pending-row">
+            <span class="label">Name</span>
+            <span class="value">{{ pending.display_name }}</span>
+          </div>
+          <div class="pending-row">
+            <span class="label">Timezone</span>
+            <span class="value">{{ pending.timezone || 'America/Chicago' }}</span>
+          </div>
+        </div>
+        <p class="info-msg">
+          Profile settings come from KumpeCloud Auth.
+          <a *ngIf="accountCenterProfileUrl" [href]="accountCenterProfileUrl">Update profile</a>
+          before creating your kPanel account.
+        </p>
       </ng-container>
-      <form class="form" (ngSubmit)="createAccount()">
-        <label class="field">
-          <span>Display Name</span>
-          <input type="text" [(ngModel)]="displayName" name="displayName"
-                 placeholder="Your name" required />
-        </label>
-        <label class="field">
-          <span>Timezone</span>
-          <app-timezone-select [(ngModel)]="timezone" name="timezone"></app-timezone-select>
-        </label>
-        <p *ngIf="error" class="error-msg">{{ error }}</p>
-        <button type="submit" class="btn-primary" [disabled]="loading">
-          {{ loading ? 'Creating…' : 'Create Account' }}
-        </button>
-      </form>
+      <p *ngIf="error" class="error-msg">{{ error }}</p>
+      <button type="button" class="btn-primary" (click)="createAccount()" [disabled]="loading">
+        {{ loading ? 'Creating…' : 'Create Account' }}
+      </button>
     </ng-container>
 
     <app-auth-debug-panel></app-auth-debug-panel>

@@ -105,6 +105,7 @@ export class LogtoOAuthService {
     const scopes = buildSignInScopeList([
       ...environment.logto.apiPermissions,
       ...environment.logto.secondaryPermissions,
+      ...environment.logto.elevatedPermissions,
     ]);
 
     const signInUrl = generateSignInUri({
@@ -235,6 +236,99 @@ export class LogtoOAuthService {
       return null;
     }
     return firstValueFrom(oidc.getRefreshToken());
+  }
+
+  /**
+   * Exchange the refresh token for a fresh ID token so profile/custom_data claims reflect
+   * Account Center changes without requiring a full sign-in.
+   */
+  async refreshOidcSession(): Promise<void> {
+    if (!isOidcConfigured()) {
+      return;
+    }
+
+    const refreshToken = await this.getStoredRefreshToken();
+    if (!refreshToken) {
+      return;
+    }
+
+    const oidc = this.oidcRuntime.getService();
+    if (!oidc) {
+      return;
+    }
+
+    const config = await firstValueFrom(oidc.getConfiguration());
+    if (!config) {
+      return;
+    }
+
+    const configId = config.configId ?? `0-${environment.logto.appId}`;
+    const stored = this.readOidcState(configId);
+
+    const discovery = await fetch(new URL('/oidc/.well-known/openid-configuration', environment.logto.endpoint))
+      .then(response => response.json() as Promise<{ token_endpoint?: string }>);
+    const tokenEndpoint = discovery.token_endpoint
+      ?? new URL('/oidc/token', environment.logto.endpoint).href;
+
+    const scopes = buildSignInScopeList([
+      ...environment.logto.apiPermissions,
+      ...environment.logto.secondaryPermissions,
+      ...environment.logto.elevatedPermissions,
+    ]).join(' ');
+
+    const parameters = new URLSearchParams();
+    parameters.append(QueryKey.ClientId, environment.logto.appId);
+    parameters.append(QueryKey.RefreshToken, refreshToken);
+    parameters.append(QueryKey.GrantType, TokenGrantType.RefreshToken);
+    parameters.append(QueryKey.Scope, scopes);
+
+    const response = await fetch(tokenEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: parameters.toString(),
+    });
+    const body = await response.text();
+    if (!response.ok) {
+      console.warn('KumpeCloud session refresh failed:', body);
+      return;
+    }
+
+    const tokenResponse = JSON.parse(body) as {
+      access_token?: string;
+      refresh_token?: string;
+      id_token?: string;
+      expires_in?: number;
+      scope?: string;
+      token_type?: string;
+    };
+
+    if (!tokenResponse.id_token) {
+      return;
+    }
+
+    const authnResult = stored['authnResult'];
+    const previous = authnResult && typeof authnResult === 'object'
+      ? authnResult as Record<string, unknown>
+      : {};
+
+    const expiresAt = tokenResponse.expires_in
+      ? Date.now() + tokenResponse.expires_in * 1000
+      : undefined;
+
+    this.persistOidcState(configId, {
+      ...stored,
+      authnResult: {
+        ...previous,
+        access_token: tokenResponse.access_token ?? previous['access_token'],
+        refresh_token: tokenResponse.refresh_token ?? previous['refresh_token'],
+        id_token: tokenResponse.id_token,
+        expires_in: tokenResponse.expires_in ?? previous['expires_in'],
+        scope: tokenResponse.scope ?? previous['scope'],
+        token_type: tokenResponse.token_type ?? previous['token_type'],
+      },
+      authzData: tokenResponse.access_token ?? stored['authzData'],
+      ...(expiresAt ? { access_token_expires_at: expiresAt } : {}),
+    });
   }
 
   async updateStoredRefreshToken(refreshToken: string): Promise<void> {

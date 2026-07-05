@@ -32,9 +32,11 @@ async function loadAuthConfig(): Promise<void> {
     const data = await permissionsResponse.json() as {
       permissions?: string[];
       secondaryPermissions?: string[];
+      elevatedPermissions?: string[];
     };
     environment.logto.apiPermissions = data.permissions ?? [];
     environment.logto.secondaryPermissions = data.secondaryPermissions ?? [];
+    environment.logto.elevatedPermissions = data.elevatedPermissions ?? [];
   }
 }
 

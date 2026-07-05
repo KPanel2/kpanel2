@@ -1,30 +1,52 @@
-import { Component, Input, OnChanges } from '@angular/core';
+import { Component, Input, OnChanges, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { AuthService } from '../../../core/services/auth.service';
-import { TimezoneSelectComponent } from '../../../shared/components/timezone-select/timezone-select.component';
 import { User } from '../../../core/models/session.model';
 import { PROVIDER_ICON_SM } from '../../../shared/utils/provider-icons';
+import { isOidcConfigured } from '../../../../environments/environment';
+
+const ACCOUNT_CENTER_SUCCESS_MESSAGES: Record<string, string> = {
+  profile: 'Profile updated in KumpeCloud Auth.',
+  email: 'Email updated in KumpeCloud Auth.',
+  password: 'Password updated in KumpeCloud Auth.',
+  username: 'Username updated in KumpeCloud Auth.',
+  security: 'Security settings updated in KumpeCloud Auth.',
+};
 
 @Component({
   selector: 'app-profile-card',
   standalone: true,
-  imports: [CommonModule, FormsModule, TimezoneSelectComponent],
+  imports: [CommonModule],
   templateUrl: './profile-card.component.html',
   styleUrls: ['./profile-card.component.scss'],
 })
-export class ProfileCardComponent implements OnChanges {
+export class ProfileCardComponent implements OnChanges, OnInit {
   @Input() user!: User;
 
-  editing = false;
-  displayName = '';
-  timezone = '';
-  saving = false;
-  error = '';
   success = '';
+  accountCenterAvailable = false;
+  profileManageUrl = '';
+  emailManageUrl = '';
+  securityManageUrl = '';
 
   constructor(private auth: AuthService, private sanitizer: DomSanitizer) {}
+
+  ngOnInit(): void {
+    this.accountCenterAvailable = isOidcConfigured();
+    if (this.accountCenterAvailable) {
+      this.profileManageUrl = this.auth.accountCenterProfileUrl();
+      this.emailManageUrl = this.auth.accountCenterEmailUrl();
+      this.securityManageUrl = this.auth.accountCenterSecurityUrl();
+    }
+
+    const successKey = this.auth.takeAccountCenterSuccessKey();
+    if (successKey) {
+      this.success = ACCOUNT_CENTER_SUCCESS_MESSAGES[successKey]
+        ?? 'Account settings updated in KumpeCloud Auth.';
+      setTimeout(() => (this.success = ''), 5000);
+    }
+  }
 
   providerIcon(name: string): SafeHtml {
     return this.sanitizer.bypassSecurityTrustHtml(PROVIDER_ICON_SM[name] ?? PROVIDER_ICON_SM['custom_oidc']);
@@ -34,41 +56,12 @@ export class ProfileCardComponent implements OnChanges {
     const labels: Record<string, string> = {
       google: 'Google', github: 'GitHub', facebook: 'Facebook',
       apple: 'Apple', microsoft_login: 'Microsoft', microsoft_entra: 'Microsoft Entra',
-      custom_oidc: 'Custom OIDC', dev_email: 'Dev Email',
+      custom_oidc: 'Custom OIDC', dev_email: 'Dev Email', kumpecloud: 'KumpeCloud',
     };
     return labels[name] ?? name;
   }
 
   ngOnChanges(): void {
-    this.displayName = this.user?.display_name ?? '';
-    this.timezone = this.user?.timezone ?? 'UTC';
-  }
-
-  startEdit(): void {
-    this.editing = true;
-    this.error = '';
-    this.success = '';
-  }
-
-  cancel(): void {
-    this.editing = false;
-    this.ngOnChanges();
-  }
-
-  save(): void {
-    this.saving = true;
-    this.error = '';
-    this.auth.updateProfile(this.displayName.trim(), this.timezone).subscribe({
-      next: () => {
-        this.saving = false;
-        this.editing = false;
-        this.success = 'Profile updated';
-        setTimeout(() => (this.success = ''), 3000);
-      },
-      error: (e: Error) => {
-        this.error = e.message;
-        this.saving = false;
-      },
-    });
+    // user input drives the read-only view
   }
 }

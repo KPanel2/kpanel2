@@ -18,6 +18,7 @@ import { firstValueFrom } from 'rxjs';
 import { ApiService } from './api.service';
 import { AuthDebugService } from './auth-debug.service';
 import { AuthRequestTraceService } from './auth-request-trace.service';
+import { KumpeAccountCenterService } from './kumpe-account-center.service';
 import { LogtoApiTokenService } from './logto-api-token.service';
 import { LogtoOAuthService } from './logto-oauth.service';
 import { OidcRuntimeService } from './oidc-runtime.service';
@@ -35,12 +36,14 @@ const SECURITY_RECHECK_MS = 60_000;
 export class AuthService {
   private readonly oidcRuntime = inject(OidcRuntimeService);
   private readonly logtoOAuth = inject(LogtoOAuthService);
+  private readonly accountCenter = inject(KumpeAccountCenterService);
   private readonly apiTokenService = inject(LogtoApiTokenService);
   private readonly authDebug = inject(AuthDebugService);
   private readonly requestTrace = inject(AuthRequestTraceService);
   private readonly _session = new BehaviorSubject<SessionState>(UNAUTHENTICATED_SESSION);
   private securityWatchSub?: Subscription;
   private securityWatchActive = false;
+  private accountCenterSuccessKey: string | null = null;
 
   session$: Observable<SessionState> = this._session.asObservable();
 
@@ -58,8 +61,13 @@ export class AuthService {
     return this._session.value?.user;
   }
 
-  loadSession(): Observable<SessionState> {
-    return from(this.prepareAuthHeaders({ includeSecurityFlags: true })).pipe(
+  loadSession(options: { refreshClaims?: boolean } = {}): Observable<SessionState> {
+    const refreshClaims$ = options.refreshClaims
+      ? from(this.logtoOAuth.refreshOidcSession())
+      : of(undefined);
+
+    return refreshClaims$.pipe(
+      switchMap(() => from(this.prepareAuthHeaders({ includeSecurityFlags: true }))),
       switchMap(({ headers, delivery }) => this.api.get<SessionState>('/api/v1/auth/session', headers).pipe(
         map(session => this.applyLocalSecurityPolicy(session)),
         tap(session => this.applySessionState(session, delivery)),
@@ -77,8 +85,45 @@ export class AuthService {
     );
   }
 
-  bootstrapAfterLogin(): Observable<SessionState> {
-    return this.loadSession();
+  /** Refresh KumpeCloud Auth claims and reload the local session (e.g. after Account Center). */
+  refreshProfileFromAuth(): Observable<SessionState> {
+    return this.loadSession({ refreshClaims: true });
+  }
+
+  consumeAccountCenterSuccess(): boolean {
+    const params = new URLSearchParams(window.location.search);
+    const success = params.get('show_success');
+    if (!success) {
+      return false;
+    }
+    this.accountCenterSuccessKey = success;
+    params.delete('show_success');
+    const query = params.toString();
+    const nextUrl = `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`;
+    window.history.replaceState({}, document.title, nextUrl);
+    return true;
+  }
+
+  takeAccountCenterSuccessKey(): string | null {
+    const key = this.accountCenterSuccessKey;
+    this.accountCenterSuccessKey = null;
+    return key;
+  }
+
+  accountCenterProfileUrl(): string {
+    return this.accountCenter.profileUrl({ showSuccess: true });
+  }
+
+  accountCenterSecurityUrl(): string {
+    return this.accountCenter.securityUrl({ showSuccess: true });
+  }
+
+  accountCenterEmailUrl(): string {
+    return this.accountCenter.emailUrl({ showSuccess: true });
+  }
+
+  bootstrapAfterLogin(options: { refreshClaims?: boolean } = {}): Observable<SessionState> {
+    return this.loadSession(options);
   }
 
   private async prepareAuthHeaders(options: { includeSecurityFlags?: boolean } = {}): Promise<{
@@ -137,7 +182,7 @@ export class AuthService {
         filter(() => document.visibilityState === 'visible'),
       ),
     ).pipe(
-      switchMap(() => (this.isAuthenticated ? this.loadSession() : EMPTY)),
+      switchMap(() => (this.isAuthenticated ? this.loadSession({ refreshClaims: true }) : EMPTY)),
     ).subscribe();
   }
 
@@ -170,26 +215,16 @@ export class AuthService {
     );
   }
 
-  createAccount(displayName: string, timezone: string): Observable<SessionState> {
+  createAccount(): Observable<SessionState> {
     return from(this.prepareAuthHeaders({ includeSecurityFlags: true })).pipe(
       switchMap(({ headers, delivery }) => this.api.post<SessionState>(
         '/api/v1/account/create',
-        { display_name: displayName, timezone },
+        {},
         headers,
       ).pipe(
         map(session => this.applyLocalSecurityPolicy(session)),
         tap(session => this.applySessionState(session, delivery)),
       )),
-    );
-  }
-
-  updateProfile(displayName: string, timezone: string): Observable<SessionState> {
-    return from(this.prepareAuthHeaders({ includeSecurityFlags: false })).pipe(
-      switchMap(({ headers }) => this.api.patch<SessionState>(
-        '/api/v1/account/profile',
-        { timezone },
-        headers,
-      ).pipe(tap(session => this._session.next(session)))),
     );
   }
 }

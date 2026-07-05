@@ -1,0 +1,232 @@
+<div class="card superadmin-panel">
+  <div class="card-header">
+    <h2>SuperAdmin Config</h2>
+    <button type="button" class="btn-ghost" (click)="loadAll()">Refresh</button>
+  </div>
+
+  <p class="panel-desc">
+    System-wide view of users, households, devices, and URLs. Reassign ownership and manage access across tenants.
+  </p>
+
+  <div class="stats" *ngIf="overview">
+    <div class="stat"><span class="stat-value">{{ overview.users }}</span><span class="stat-label">Users</span></div>
+    <div class="stat"><span class="stat-value">{{ overview.households }}</span><span class="stat-label">Households</span></div>
+    <div class="stat"><span class="stat-value">{{ overview.devices }}</span><span class="stat-label">Devices</span></div>
+    <div class="stat"><span class="stat-value">{{ overview.household_urls }}</span><span class="stat-label">URLs</span></div>
+  </div>
+
+  <div class="section-tabs">
+    <button type="button" class="section-tab" [class.active]="section === 'users'" (click)="setSection('users')">Users</button>
+    <button type="button" class="section-tab" [class.active]="section === 'households'" (click)="setSection('households')">Households</button>
+    <button type="button" class="section-tab" [class.active]="section === 'devices'" (click)="setSection('devices')">Devices</button>
+    <button type="button" class="section-tab" [class.active]="section === 'urls'" (click)="setSection('urls')">URLs</button>
+  </div>
+
+  <p *ngIf="loading" class="loading-text">Loading…</p>
+  <p *ngIf="error" class="error-msg">{{ error }}</p>
+  <p *ngIf="success" class="success-msg">{{ success }}</p>
+
+  <!-- Users -->
+  <div *ngIf="!loading && section === 'users'" class="admin-table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Timezone</th>
+          <th>Devices</th>
+          <th>Households</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let user of users" [class.inactive-row]="!user.is_active">
+          <td>{{ user.id }}</td>
+          <td>{{ user.display_name }}</td>
+          <td>{{ user.email }}</td>
+          <td>{{ user.timezone }}</td>
+          <td>{{ user.device_count }}</td>
+          <td>{{ user.household_count }} <span class="muted">({{ user.owned_household_count }} owned)</span></td>
+          <td>
+            <span class="badge" [class.badge--active]="user.is_active" [class.badge--inactive]="!user.is_active">
+              {{ user.is_active ? 'Active' : 'Inactive' }}
+            </span>
+          </td>
+          <td>
+            <button type="button" class="btn-ghost btn-sm" (click)="toggleUserActive(user)">
+              {{ user.is_active ? 'Deactivate' : 'Activate' }}
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Households -->
+  <div *ngIf="!loading && section === 'households'" class="admin-table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>Owner</th>
+          <th>Members</th>
+          <th>URLs</th>
+          <th>Devices</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <ng-container *ngFor="let household of households">
+          <tr>
+            <td>{{ household.id }}</td>
+            <td>{{ household.name }}</td>
+            <td>
+              <span *ngIf="household.owner as owner">{{ owner.display_name }} ({{ owner.id }})</span>
+            </td>
+            <td>{{ household.member_count }}</td>
+            <td>{{ household.url_count }}</td>
+            <td>{{ household.device_count }}</td>
+            <td>
+              <button type="button" class="btn-ghost btn-sm" (click)="startEditHousehold(household)">Edit</button>
+            </td>
+          </tr>
+          <tr *ngIf="editingHouseholdId === household.id" class="edit-row">
+            <td colspan="7">
+              <form class="edit-form" (ngSubmit)="saveHousehold(household.id)">
+                <label class="field">
+                  <span>Name</span>
+                  <input type="text" [(ngModel)]="householdName" name="householdName" required />
+                </label>
+                <label class="field">
+                  <span>Timezone</span>
+                  <input type="text" [(ngModel)]="householdTimezone" name="householdTimezone" placeholder="America/Chicago" />
+                </label>
+                <label class="field">
+                  <span>Owner user ID</span>
+                  <input type="number" [(ngModel)]="householdOwnerId" name="householdOwnerId" required />
+                </label>
+                <div class="btn-row">
+                  <button type="submit" class="btn-primary btn-sm">Save</button>
+                  <button type="button" class="btn-ghost btn-sm" (click)="clearEdit()">Cancel</button>
+                </div>
+              </form>
+              <form class="edit-form member-form" (ngSubmit)="addMember(household.id)">
+                <label class="field">
+                  <span>Add member by email</span>
+                  <input type="email" [(ngModel)]="memberEmail" name="memberEmail" placeholder="user@example.com" />
+                </label>
+                <button type="submit" class="btn-secondary btn-sm">Add member</button>
+              </form>
+            </td>
+          </tr>
+        </ng-container>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Devices -->
+  <div *ngIf="!loading && section === 'devices'" class="admin-table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Code</th>
+          <th>Name</th>
+          <th>Owner</th>
+          <th>URL mode</th>
+          <th>Resolved URL</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <ng-container *ngFor="let device of devices">
+          <tr>
+            <td><code>{{ device.registration_code }}</code></td>
+            <td>{{ device.display_name || '—' }}</td>
+            <td>
+              <span *ngIf="device.owner as owner">{{ owner.display_name }} ({{ owner.id }})</span>
+              <span *ngIf="!device.owner" class="muted">Unclaimed</span>
+            </td>
+            <td>{{ device.url_mode || 'custom' }}</td>
+            <td class="url-cell">{{ device.resolved_url || device.target_url || '—' }}</td>
+            <td>
+              <button type="button" class="btn-ghost btn-sm" (click)="startEditDevice(device)">Reassign</button>
+            </td>
+          </tr>
+          <tr *ngIf="editingDeviceCode === device.registration_code" class="edit-row">
+            <td colspan="6">
+              <form class="edit-form" (ngSubmit)="saveDevice(device.registration_code)">
+                <label class="field">
+                  <span>Display name</span>
+                  <input type="text" [(ngModel)]="deviceDisplayName" name="deviceDisplayName" />
+                </label>
+                <label class="field">
+                  <span>Owner user ID (empty to unclaim)</span>
+                  <input type="number" [(ngModel)]="deviceOwnerId" name="deviceOwnerId" placeholder="Leave empty to unclaim" />
+                </label>
+                <div class="btn-row">
+                  <button type="submit" class="btn-primary btn-sm">Save</button>
+                  <button type="button" class="btn-ghost btn-sm" (click)="clearEdit()">Cancel</button>
+                </div>
+              </form>
+            </td>
+          </tr>
+        </ng-container>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- URLs -->
+  <div *ngIf="!loading && section === 'urls'" class="admin-table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Household</th>
+          <th>Name</th>
+          <th>Template</th>
+          <th>Default</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <ng-container *ngFor="let url of urls">
+          <tr>
+            <td>{{ url.id }}</td>
+            <td>{{ url.household_name }} ({{ url.household_id }})</td>
+            <td>{{ url.friendly_name }}</td>
+            <td class="url-cell">{{ url.url_template }}</td>
+            <td>{{ url.is_default ? 'Yes' : 'No' }}</td>
+            <td>
+              <button type="button" class="btn-ghost btn-sm" (click)="startEditUrl(url)">Edit</button>
+            </td>
+          </tr>
+          <tr *ngIf="editingUrlId === url.id" class="edit-row">
+            <td colspan="6">
+              <form class="edit-form" (ngSubmit)="saveUrl(url.id)">
+                <label class="field">
+                  <span>Household ID</span>
+                  <input type="number" [(ngModel)]="urlHouseholdId" name="urlHouseholdId" required />
+                </label>
+                <label class="field">
+                  <span>Friendly name</span>
+                  <input type="text" [(ngModel)]="urlFriendlyName" name="urlFriendlyName" required />
+                </label>
+                <label class="field field-wide">
+                  <span>URL template</span>
+                  <input type="text" [(ngModel)]="urlTemplate" name="urlTemplate" required />
+                </label>
+                <div class="btn-row">
+                  <button type="submit" class="btn-primary btn-sm">Save</button>
+                  <button type="button" class="btn-ghost btn-sm" (click)="clearEdit()">Cancel</button>
+                </div>
+              </form>
+            </td>
+          </tr>
+        </ng-container>
+      </tbody>
+    </table>
+  </div>
+</div>

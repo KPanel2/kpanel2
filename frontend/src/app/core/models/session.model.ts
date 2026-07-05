@@ -38,6 +38,7 @@ export interface PendingAuth {
   provider_name: string;
   email: string | null;
   display_name?: string | null;
+  timezone?: string | null;
 }
 
 export interface SessionState {

@@ -29,6 +29,11 @@ class Permissions:
     HOUSEHOLDS_READ = f"{PERMISSION_PREFIX}households:read"
     HOUSEHOLDS_WRITE = f"{PERMISSION_PREFIX}households:write"
     ADMIN = ADMIN_PERMISSION
+    SUPERADMIN = f"{PERMISSION_PREFIX}superadmin"
+
+
+# Requested at sign-in but only granted to system admins assigned the role in KumpeCloud Auth.
+ELEVATED_KPANEL_PERMISSIONS = (Permissions.SUPERADMIN,)
 
 
 def all_kpanel_permission_names() -> list[str]:
@@ -36,7 +41,10 @@ def all_kpanel_permission_names() -> list[str]:
     return sorted(
         value
         for name, value in vars(Permissions).items()
-        if not name.startswith("_") and isinstance(value, str) and is_kpanel_permission(value)
+        if not name.startswith("_")
+        and isinstance(value, str)
+        and is_kpanel_permission(value)
+        and value not in ELEVATED_KPANEL_PERMISSIONS
     )
 
 

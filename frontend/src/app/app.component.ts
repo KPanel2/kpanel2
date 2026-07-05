@@ -18,15 +18,20 @@ export class AppComponent implements OnInit {
   ngOnInit(): void {
     this.auth.session$.subscribe(session => this.handleSession(session));
 
+    const accountCenterSuccess = this.auth.consumeAccountCenterSuccess();
+    const refreshClaims = accountCenterSuccess;
+
     const oidc = this.oidcRuntime.getService();
     const bootstrap$ = oidc
       ? oidc.isAuthenticated().pipe(
         take(1),
         switchMap(isAuthenticated => (
-          isAuthenticated ? this.auth.bootstrapAfterLogin() : this.auth.loadSession()
+          isAuthenticated
+            ? this.auth.bootstrapAfterLogin({ refreshClaims })
+            : this.auth.loadSession({ refreshClaims })
         )),
       )
-      : this.auth.loadSession();
+      : this.auth.loadSession({ refreshClaims });
 
     bootstrap$.subscribe({
       error: () => {

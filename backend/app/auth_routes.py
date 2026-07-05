@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db_session
 from app.kumpe_auth import SECURITY_FLAGS_TOKEN_HEADER, AuthContext, get_optional_auth_context
 from app.kumpe_auth_config import settings as kumpe_settings
+from app.kumpe_permissions import ELEVATED_KPANEL_PERMISSIONS
 from app.security_flag_access import build_auth_debug, evaluate_security_flag_access
 from app.session_service import (
     build_session_state,
@@ -36,6 +37,7 @@ def auth_permissions() -> dict[str, Any]:
     return {
         "apiResource": kumpe_settings.api_resource,
         "permissions": kumpe_settings.oauth_permissions,
+        "elevatedPermissions": list(ELEVATED_KPANEL_PERMISSIONS),
         "secondaryApiResource": kumpe_settings.secondary_api_resource,
         "secondaryPermissions": kumpe_settings.secondary_oauth_permissions,
     }
