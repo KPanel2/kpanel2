@@ -1,85 +1,111 @@
-<div class="auth-shell">
+<app-auth-status
+  *ngIf="viewPhase === 'checking' || viewPhase === 'redirecting'"
+  [message]="statusMessage">
+</app-auth-status>
+
+<div *ngIf="viewPhase === 'access_denied'" class="auth-shell">
   <div class="auth-card">
+    <div class="hero">
+      <img class="logo-img" src="logo.webp" alt="kPanel" />
+      <span class="logo-text">kPanel</span>
+      <p class="tagline">Access Not Permitted</p>
+    </div>
+    <p class="error-msg">{{ session.message || 'Access to kPanel is not permitted for this account.' }}</p>
+    <p class="info-msg">Sign out to switch KumpeCloud accounts.</p>
+    <button
+      type="button"
+      class="btn-secondary"
+      (click)="logout()"
+      [disabled]="loggingOut">
+      {{ loggingOut ? 'Signing out…' : 'Sign Out' }}
+    </button>
+    <p *ngIf="error" class="error-msg">{{ error }}</p>
+  </div>
+</div>
 
-    <ng-container *ngIf="status === 'access_denied'">
-      <div class="hero">
-        <img class="logo-img" src="logo.webp" alt="kPanel" />
-        <span class="logo-text">kPanel</span>
-        <p class="tagline">Access Not Permitted</p>
-      </div>
-      <p class="error-msg">{{ session.message || 'Access to kPanel is not permitted for this account.' }}</p>
-      <p class="info-msg">Sign out to switch KumpeCloud accounts.</p>
-      <button
-        type="button"
-        class="btn-secondary"
-        (click)="logout()"
-        [disabled]="loggingOut">
-        {{ loggingOut ? 'Signing out…' : 'Sign Out' }}
-      </button>
-      <p *ngIf="error" class="error-msg">{{ error }}</p>
-    </ng-container>
+<div *ngIf="viewPhase === 'oidc_fallback'" class="auth-shell">
+  <div class="auth-card">
+    <div class="hero">
+      <img class="logo-img" src="logo.webp" alt="kPanel" />
+      <span class="logo-text">kPanel</span>
+      <p class="tagline">Sign in to manage your devices</p>
+    </div>
+    <p class="error-msg">{{ error }}</p>
+    <button
+      type="button"
+      class="provider-button provider-button--kumpecloud"
+      (click)="retrySignIn()">
+      Try again
+    </button>
+  </div>
+</div>
 
-    <ng-container *ngIf="status === 'unauthenticated'">
-      <div class="hero">
-        <img class="logo-img" src="logo.webp" alt="kPanel" />
-        <span class="logo-text">kPanel</span>
-        <p class="tagline">Sign in to manage your devices</p>
-      </div>
-      <button
-        *ngIf="oidcConfigured"
-        type="button"
-        class="provider-button provider-button--kumpecloud"
-        (click)="signIn()">
-        Sign in with KumpeCloud
+<div *ngIf="viewPhase === 'dev_sign_in'" class="auth-shell">
+  <div class="auth-card">
+    <div class="hero">
+      <img class="logo-img" src="logo.webp" alt="kPanel" />
+      <span class="logo-text">kPanel</span>
+      <p class="tagline">Sign in to manage your devices</p>
+    </div>
+    <form class="form dev-login-form" (ngSubmit)="devLogin()">
+      <label class="field">
+        <span>Dev Email (local only)</span>
+        <input type="email" [(ngModel)]="devEmail" name="devEmail"
+               placeholder="you@example.com" />
+      </label>
+      <button type="submit" class="btn-secondary" [disabled]="!devEmail.trim()">
+        Sign In (Dev)
       </button>
-      <form *ngIf="devAuthEnabled" class="form dev-login-form" (ngSubmit)="devLogin()">
-        <label class="field">
-          <span>Dev Email (local only)</span>
-          <input type="email" [(ngModel)]="devEmail" name="devEmail"
-                 placeholder="you@example.com" />
-        </label>
-        <button type="submit" class="btn-secondary" [disabled]="!devEmail.trim()">
-          Sign In (Dev)
-        </button>
-      </form>
-      <p *ngIf="!oidcConfigured && !devAuthEnabled" class="error-msg">
-        Sign-in is not configured. Set KPANEL_LOGTO_APP_ID on the backend.
+    </form>
+    <p *ngIf="error" class="error-msg">{{ error }}</p>
+    <p *ngIf="session.message" class="error-msg">{{ session.message }}</p>
+  </div>
+</div>
+
+<div *ngIf="viewPhase === 'unconfigured'" class="auth-shell">
+  <div class="auth-card">
+    <div class="hero">
+      <img class="logo-img" src="logo.webp" alt="kPanel" />
+      <span class="logo-text">kPanel</span>
+      <p class="tagline">Sign in to manage your devices</p>
+    </div>
+    <p class="error-msg">
+      Sign-in is not configured. Set KPANEL_LOGTO_APP_ID on the backend.
+    </p>
+    <p *ngIf="session.message" class="error-msg">{{ session.message }}</p>
+  </div>
+</div>
+
+<div *ngIf="viewPhase === 'needs_account'" class="auth-shell">
+  <div class="auth-card">
+    <div class="hero">
+      <img class="logo-img" src="logo.webp" alt="kPanel" />
+      <span class="logo-text">kPanel</span>
+      <p class="tagline">Create Account</p>
+    </div>
+    <ng-container *ngIf="session.pending as pending">
+      <p class="info-msg">
+        Signed in as <strong>{{ pending.email }}</strong> via KumpeCloud Auth
       </p>
-      <p *ngIf="error" class="error-msg">{{ error }}</p>
-      <p *ngIf="session.message" class="error-msg">{{ session.message }}</p>
-    </ng-container>
-
-    <ng-container *ngIf="status === 'needs_account'">
-      <div class="hero">
-        <img class="logo-img" src="logo.webp" alt="kPanel" />
-        <span class="logo-text">kPanel</span>
-        <p class="tagline">Create Account</p>
-      </div>
-      <ng-container *ngIf="session.pending as pending">
-        <p class="info-msg">
-          Signed in as <strong>{{ pending.email }}</strong> via KumpeCloud Auth
-        </p>
-        <div class="pending-profile">
-          <div class="pending-row">
-            <span class="label">Name</span>
-            <span class="value">{{ pending.display_name }}</span>
-          </div>
-          <div class="pending-row">
-            <span class="label">Timezone</span>
-            <span class="value">{{ pending.timezone || 'America/Chicago' }}</span>
-          </div>
+      <div class="pending-profile">
+        <div class="pending-row">
+          <span class="label">Name</span>
+          <span class="value">{{ pending.display_name }}</span>
         </div>
-        <p class="info-msg">
-          Profile settings come from KumpeCloud Auth.
-          <a *ngIf="accountCenterProfileUrl" [href]="accountCenterProfileUrl">Update profile</a>
-          before creating your kPanel account.
-        </p>
-      </ng-container>
-      <p *ngIf="error" class="error-msg">{{ error }}</p>
-      <button type="button" class="btn-primary" (click)="createAccount()" [disabled]="loading">
-        {{ loading ? 'Creating…' : 'Create Account' }}
-      </button>
+        <div class="pending-row">
+          <span class="label">Timezone</span>
+          <span class="value">{{ pending.timezone || 'America/Chicago' }}</span>
+        </div>
+      </div>
+      <p class="info-msg">
+        Profile settings come from KumpeCloud Auth.
+        <a *ngIf="accountCenterProfileUrl" [href]="accountCenterProfileUrl">Update profile</a>
+        before creating your kPanel account.
+      </p>
     </ng-container>
-
+    <p *ngIf="error" class="error-msg">{{ error }}</p>
+    <button type="button" class="btn-primary" (click)="createAccount()" [disabled]="loading">
+      {{ loading ? 'Creating…' : 'Create Account' }}
+    </button>
   </div>
 </div>

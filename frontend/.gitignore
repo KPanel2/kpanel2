@@ -1,4 +1,7 @@
+# Frontend-specific ignores (root .gitignore also applies)
 node_modules/
 dist/
 .angular/
+coverage/
+.npm/
 *.tgz

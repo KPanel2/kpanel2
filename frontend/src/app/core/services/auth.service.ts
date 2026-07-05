@@ -12,7 +12,7 @@ import {
   of,
   switchMap,
 } from 'rxjs';
-import { catchError, filter, map, tap } from 'rxjs/operators';
+import { catchError, filter, finalize, map, take, tap } from 'rxjs/operators';
 import { firstValueFrom } from 'rxjs';
 
 import { ApiService } from './api.service';
@@ -39,11 +39,13 @@ export class AuthService {
   private readonly apiTokenService = inject(LogtoApiTokenService);
   private readonly requestTrace = inject(AuthRequestTraceService);
   private readonly _session = new BehaviorSubject<SessionState>(UNAUTHENTICATED_SESSION);
+  private readonly _authReady = new BehaviorSubject(false);
   private securityWatchSub?: Subscription;
   private securityWatchActive = false;
   private accountCenterSuccessKey: string | null = null;
 
   session$: Observable<SessionState> = this._session.asObservable();
+  authReady$ = this._authReady.asObservable();
 
   constructor(private api: ApiService) {}
 
@@ -53,6 +55,10 @@ export class AuthService {
 
   get isAuthenticated(): boolean {
     return this._session.value?.status === 'authenticated';
+  }
+
+  get authReady(): boolean {
+    return this._authReady.value;
   }
 
   get currentUser() {
@@ -122,6 +128,24 @@ export class AuthService {
 
   bootstrapAfterLogin(options: { refreshClaims?: boolean } = {}): Observable<SessionState> {
     return this.loadSession(options);
+  }
+
+  bootstrapApp(options: { refreshClaims?: boolean } = {}): Observable<SessionState> {
+    const oidc = this.oidcRuntime.getService();
+    const bootstrap$ = oidc
+      ? oidc.isAuthenticated().pipe(
+        take(1),
+        switchMap(isAuthenticated => (
+          isAuthenticated
+            ? this.bootstrapAfterLogin(options)
+            : this.loadSession(options)
+        )),
+      )
+      : this.loadSession(options);
+
+    return bootstrap$.pipe(
+      finalize(() => this._authReady.next(true)),
+    );
   }
 
   private async prepareAuthHeaders(options: { includeSecurityFlags?: boolean } = {}): Promise<{
