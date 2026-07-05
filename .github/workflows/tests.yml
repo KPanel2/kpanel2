@@ -1,4 +1,4 @@
-name: Test Frontend
+name: Tests
 
 on:
   pull_request:
@@ -15,13 +15,13 @@ permissions:
   contents: read
   pull-requests: write
 
-defaults:
-  run:
-    working-directory: frontend
-
 jobs:
-  test:
+  test-frontend:
+    name: Test Frontend
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
 
     steps:
       - name: Check out source repository
@@ -81,3 +81,68 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node .github/scripts/update-pr-coverage-comment.mjs --suite frontend --json coverage-frontend.json
+
+  test-backend:
+    name: Test Backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Check out source repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch base branch for PR diff coverage
+        if: github.event_name == 'pull_request'
+        working-directory: .
+        run: git fetch origin "${{ github.base_ref }}"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Run unit tests with coverage
+        id: test
+        run: pytest
+
+      - name: Report coverage
+        if: always() && steps.test.outcome != 'cancelled'
+        working-directory: .
+        env:
+          DIFF_BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}
+        run: |
+          args=(
+            backend/coverage/coverage.json
+            Backend
+            80
+            --json-out coverage-backend.json
+          )
+          if [ -n "$DIFF_BASE_REF" ]; then
+            args+=(
+              --diff-base "$DIFF_BASE_REF"
+              --diff-format pytest
+              --diff-coverage-path backend/coverage/coverage.json
+              --diff-repo-path-prefix backend/
+            )
+          fi
+          node .github/scripts/coverage-report.mjs "${args[@]}"
+
+      - name: Comment coverage on pull request
+        if: always() && github.event_name == 'pull_request' && steps.test.outcome != 'cancelled'
+        working-directory: .
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node .github/scripts/update-pr-coverage-comment.mjs --suite backend --json coverage-backend.json
