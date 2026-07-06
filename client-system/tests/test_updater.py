@@ -16,6 +16,8 @@ def test_install_exact_apt_version(run):
     assert ok is True
     assert "1.2.3" in message
     assert run.call_count == 2
+    assert run.call_args_list[0].args[0] == ["sudo", "apt-get", "update"]
+    assert run.call_args_list[1].args[0][0] == "sudo"
 
 
 @patch("kpanel_client.updater.subprocess.run")
@@ -60,6 +62,8 @@ def test_run_update_install_generic_upgrade(run):
     assert ok is True
     assert message == "Package upgrade completed via apt"
     assert run.call_count == 2
+    assert run.call_args_list[0].args[0] == ["sudo", "apt-get", "update"]
+    assert run.call_args_list[1].args[0][:2] == ["sudo", "apt-get"]
 
 
 @patch("kpanel_client.updater.subprocess.run", side_effect=RuntimeError("boom"))

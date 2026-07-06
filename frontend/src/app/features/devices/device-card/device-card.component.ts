@@ -76,6 +76,12 @@ export class DeviceCardComponent implements OnChanges {
     return v ? 'prod' : '';
   }
 
+  get needsUpdate(): boolean {
+    const current = this.device?.client_version;
+    const latest = this.device?.latest_client_version;
+    return Boolean(current && latest && current !== latest);
+  }
+
   onHouseholdChange(): void {
     if (this.roomId !== null && this.selectedHouseholdId !== null) {
       const roomBelongs = (this.households.find(h => h.id === this.selectedHouseholdId)?.rooms ?? [])

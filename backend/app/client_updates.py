@@ -51,15 +51,16 @@ def get_latest_for_channel(current_version: str) -> tuple[str, str | None]:
     return KPANEL_CLIENT_LATEST_VERSION, KPANEL_CLIENT_PACKAGE_URL or None
 
 
-def build_update_policy(current_version: str) -> dict | None:
+def build_update_policy(current_version: str, *, force_update: bool = False) -> dict | None:
     channel = detect_channel(current_version)
     latest_version, package_url = get_latest_for_channel(current_version)
     if not latest_version:
         return None
     outdated = bool(current_version) and current_version != latest_version
+    should_update = outdated or force_update
     return {
-        "outdated": outdated,
-        "update_now": outdated,
+        "outdated": should_update,
+        "update_now": should_update,
         "channel": channel,
         "current_version": current_version or None,
         "target_version": latest_version,

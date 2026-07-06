@@ -72,6 +72,38 @@ def test_resolve_device_configured(client, db_session):
     assert "update" in body
 
 
+def test_resolve_device_forces_update_when_pending_action_is_update(client, db_session, monkeypatch):
+    user = seed_user(db_session)
+    seed_device(
+        db_session,
+        registration_code="KPANEL-UPD01",
+        device_id="kpanel-upd1",
+        user_id=user.id,
+        display_name="Kitchen",
+        target_url="https://kitchen.example.com",
+        pending_action="update",
+    )
+    monkeypatch.setattr(
+        "app.client_updates.get_latest_for_channel",
+        lambda _current: ("2.0.0", "https://example.com/pkg.tar.gz"),
+    )
+
+    response = client.post(
+        "/api/v1/devices/resolve",
+        json={
+            "device_id": "kpanel-upd1",
+            "registration_code": "KPANEL-UPD01",
+            "client_version": "2.0.0",
+        },
+        headers=_device_headers("kpanel-upd1"),
+    )
+
+    assert response.status_code == 200
+    update = response.json()["update"]
+    assert update["update_now"] is True
+    assert update["target_version"] == "2.0.0"
+
+
 def test_resolve_device_not_found_for_device(client, db_session):
     response = client.post(
         "/api/v1/devices/resolve",

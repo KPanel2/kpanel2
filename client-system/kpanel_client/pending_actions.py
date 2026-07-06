@@ -5,7 +5,7 @@ from typing import Protocol
 UPDATE_COMMAND = [
     "sh",
     "-lc",
-    "apt-get update && apt-get install -y --only-upgrade --allow-change-held-packages kpanel-client",
+    "sudo apt-get update && sudo apt-get install -y --only-upgrade --allow-change-held-packages kpanel-client",
 ]
 REBOOT_COMMAND = ["systemctl", "reboot"]
 SUPPORTED_ACTIONS = frozenset({"update", "reboot"})
@@ -27,6 +27,7 @@ class CommandResult:
 
 
 CommandRunner = Callable[[list[str]], CommandResult]
+UpdateInstaller = Callable[[str | None, str | None], tuple[bool, str]]
 
 
 def normalize_action(action: str | None) -> str:
@@ -40,6 +41,8 @@ def run_pending_action(
     registration_code: str,
     action: str | None,
     runner: CommandRunner,
+    update_policy: dict | None = None,
+    update_installer: UpdateInstaller | None = None,
     on_reboot_ack_failed: Callable[[], None] | None = None,
 ) -> None:
     normalized = normalize_action(action)
@@ -47,7 +50,14 @@ def run_pending_action(
         return
 
     if normalized == "update":
-        _run_update(api, device_id, registration_code, runner)
+        _run_update(
+            api,
+            device_id,
+            registration_code,
+            runner,
+            update_policy=update_policy,
+            update_installer=update_installer,
+        )
         return
 
     _run_reboot(api, device_id, registration_code, runner, on_reboot_ack_failed)
@@ -58,8 +68,21 @@ def _run_update(
     device_id: str,
     registration_code: str,
     runner: CommandRunner,
+    *,
+    update_policy: dict | None = None,
+    update_installer: UpdateInstaller | None = None,
 ) -> None:
     api.ack_device_action(device_id, registration_code, action="update", status="started")
+
+    if update_policy and update_installer is not None:
+        ok, _message = update_installer(
+            update_policy.get("target_version"),
+            update_policy.get("package_url"),
+        )
+        status = "completed" if ok else "failed"
+        api.ack_device_action(device_id, registration_code, action="update", status=status)
+        return
+
     result = runner(UPDATE_COMMAND)
     status = "completed" if result.returncode == 0 else "failed"
     api.ack_device_action(device_id, registration_code, action="update", status=status)
