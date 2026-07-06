@@ -44,8 +44,9 @@ def _apply_timezone(timezone: str) -> None:
 
 
 def _default_command_runner(command: list[str]) -> CommandResult:
-    result = subprocess.run(command, check=False)
-    return CommandResult(returncode=result.returncode)
+    result = subprocess.run(command, check=False, capture_output=True)
+    stderr = result.stderr.decode(errors="replace")
+    return CommandResult(returncode=result.returncode, stderr=stderr)
 
 
 def _run_pending_action(
@@ -54,8 +55,8 @@ def _run_pending_action(
     registration_code: str,
     action: str,
     update_policy: dict | None = None,
-) -> None:
-    run_pending_action(
+):
+    return run_pending_action(
         api,
         device_id=cfg.device_id,
         registration_code=registration_code,
@@ -204,13 +205,16 @@ def run() -> None:
             continue
 
         if resolved.pending_action:
-            _run_pending_action(
+            action_result = _run_pending_action(
                 api,
                 cfg,
                 state.registration_code,
                 resolved.pending_action,
                 update_policy=resolved.update,
             )
+            if action_result.defer_kiosk:
+                time.sleep(cfg.poll_interval_sec)
+                continue
 
         hide_registration_prompt()
         launch_kiosk(resolved.configured_url)
