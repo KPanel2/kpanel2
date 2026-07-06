@@ -13,6 +13,7 @@ from kpanel_client.main import (
     run,
 )
 from kpanel_client.pending_actions import CommandResult
+from kpanel_client.updater import _run_update_install
 from tests.conftest import FakeApi
 
 
@@ -125,6 +126,8 @@ def test_run_pending_action_delegates_to_service():
     assert kwargs["device_id"] == "kpanel-delegate"
     assert kwargs["registration_code"] == "KPANEL-DELEGATE"
     assert kwargs["action"] == "update"
+    assert kwargs["update_policy"] is None
+    assert kwargs["update_installer"] is _run_update_install
     assert callable(kwargs["runner"])
     assert callable(kwargs["on_reboot_ack_failed"])
 
@@ -235,6 +238,35 @@ def test_run_executes_pending_action_before_launch(run_context):
 
     assert ("run_pending_action", "reboot") in run_context.ui_calls
     assert ("launch_kiosk", "https://dashboard.example.com") in run_context.ui_calls
+
+
+def test_run_passes_update_policy_to_pending_action(run_context, monkeypatch):
+    load_or_create_state(str(run_context.state_path), "KPANEL-UPDATE")
+    update_policy = {
+        "outdated": True,
+        "update_now": True,
+        "target_version": "2.0.0",
+        "package_url": "https://example.com/pkg.deb",
+    }
+    run_context.api.resolve = ResolveResult(
+        status="configured",
+        configured_url="https://dashboard.example.com",
+        pending_action="update",
+        update=update_policy,
+    )
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(
+        "kpanel_client.main._run_pending_action",
+        lambda api, cfg, code, action, update_policy=None: captured.update(
+            {"action": action, "update_policy": update_policy}
+        ),
+    )
+
+    with pytest.raises(StopRun):
+        run()
+
+    assert captured["action"] == "update"
+    assert captured["update_policy"] == update_policy
 
 
 def test_run_applies_timezone_when_changed(run_context, monkeypatch):

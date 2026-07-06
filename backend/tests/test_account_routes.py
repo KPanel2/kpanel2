@@ -137,6 +137,35 @@ def test_account_devices_lists_owned_devices(client, db_session, dev_auth_enable
     assert devices[0]["registration_code"] == "KPANEL-LIST01"
 
 
+def test_account_devices_includes_client_version_and_frontend_aliases(
+    client, db_session, dev_auth_enabled, monkeypatch
+):
+    user = seed_user(db_session)
+    device = seed_device(
+        db_session,
+        registration_code="KPANEL-VERS1",
+        device_id="kpanel-vers1",
+        user_id=user.id,
+        display_name="Kitchen",
+        target_url="https://kitchen.example.com",
+    )
+    device.client_version = "1.2.3"
+    db_session.commit()
+    monkeypatch.setattr(
+        "app.serializers.get_latest_for_channel",
+        lambda _version: ("2.0.0", "https://example.com/pkg.tar.gz"),
+    )
+
+    response = client.get("/api/v1/account/devices", headers=_dev_headers(user.email))
+
+    assert response.status_code == 200
+    payload = response.json()["devices"][0]
+    assert payload["client_version"] == "1.2.3"
+    assert payload["latest_client_version"] == "2.0.0"
+    assert payload["last_seen"] == payload["last_seen_at"]
+    assert payload["registered_at"] == payload["claimed_at"]
+
+
 def test_account_devices_requires_auth(client):
     response = client.get("/api/v1/account/devices")
     assert response.status_code == 401

@@ -15,6 +15,14 @@ def test_normalize_action():
     assert normalize_action(None) == ""
 
 
+def test_update_command_runs_sudo_apt_update_before_upgrade():
+    assert UPDATE_COMMAND == [
+        "sh",
+        "-lc",
+        "sudo apt-get update && sudo apt-get install -y --only-upgrade --allow-change-held-packages kpanel-client",
+    ]
+
+
 @pytest.mark.parametrize("action", ["", "shutdown", None, "  "])
 def test_run_pending_action_ignores_unsupported_actions(action):
     api = FakeApi()
@@ -84,6 +92,34 @@ def test_run_pending_action_reports_update_success():
         ("kpanel-test", "KPANEL-TEST01", "update", "completed"),
     ]
     assert commands == [UPDATE_COMMAND]
+
+
+def test_run_pending_action_uses_update_policy_when_provided():
+    api = FakeApi()
+    install_calls: list[tuple[str | None, str | None]] = []
+
+    def installer(target_version, package_url):
+        install_calls.append((target_version, package_url))
+        return True, "installed"
+
+    run_pending_action(
+        api,
+        device_id="kpanel-test",
+        registration_code="KPANEL-TEST01",
+        action="update",
+        runner=lambda command: CommandResult(returncode=0),
+        update_policy={
+            "target_version": "2.0.0",
+            "package_url": "https://example.com/pkg.deb",
+        },
+        update_installer=installer,
+    )
+
+    assert api.ack_calls == [
+        ("kpanel-test", "KPANEL-TEST01", "update", "started"),
+        ("kpanel-test", "KPANEL-TEST01", "update", "completed"),
+    ]
+    assert install_calls == [("2.0.0", "https://example.com/pkg.deb")]
 
 
 def test_run_pending_action_reports_update_failure():

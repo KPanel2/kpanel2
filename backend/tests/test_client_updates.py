@@ -87,6 +87,20 @@ def test_build_update_policy_returns_none_without_latest(monkeypatch):
     assert build_update_policy("1.0.0") is None
 
 
+def test_build_update_policy_forces_update_when_requested(monkeypatch):
+    monkeypatch.setattr(
+        client_updates,
+        "get_latest_for_channel",
+        lambda _current: ("2.0.0", "https://example.com/pkg.tar.gz"),
+    )
+
+    policy = build_update_policy("2.0.0", force_update=True)
+
+    assert policy["outdated"] is True
+    assert policy["update_now"] is True
+    assert policy["target_version"] == "2.0.0"
+
+
 def test_fetch_update_manifest_returns_none_without_url(monkeypatch):
     monkeypatch.setattr(client_updates, "KPANEL_CLIENT_MANIFEST_URL", "")
     client_updates._manifest_cache["data"] = None

@@ -360,7 +360,10 @@ def resolve_device(
         return {"status": "pending", "message": "Registration code is waiting to be claimed by an account"}
 
     current_version = device.client_version or ""
-    update_policy = build_update_policy(current_version)
+    update_policy = build_update_policy(
+        current_version,
+        force_update=device.pending_action == "update",
+    )
 
     return {
         "status": "configured",

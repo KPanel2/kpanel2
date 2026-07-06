@@ -50,6 +50,9 @@ def test_serialize_device(db_session, monkeypatch):
     assert payload["resolved_url"] == "https://panel.example.com"
     assert payload["latest_client_version"] == "2.0.0"
     assert payload["has_temp_url"] is False
+    assert payload["client_version"] == "1.0.0"
+    assert payload["last_seen"] == payload["last_seen_at"]
+    assert payload["registered_at"] == payload["claimed_at"]
 
 
 def test_serialize_device_without_db_skips_resolved_url(db_session):

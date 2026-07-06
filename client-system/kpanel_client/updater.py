@@ -9,9 +9,10 @@ from kpanel_client.device_state import load_or_create_state
 
 
 def _install_exact_apt_version(target_version: str) -> tuple[bool, str]:
-    subprocess.run(["apt-get", "update"], check=True)
+    subprocess.run(["sudo", "apt-get", "update"], check=True)
     subprocess.run(
         [
+            "sudo",
             "apt-get",
             "install",
             "-y",
@@ -27,8 +28,8 @@ def _install_exact_apt_version(target_version: str) -> tuple[bool, str]:
 def _install_direct_package(package_url: str) -> tuple[bool, str]:
     deb_path = "/tmp/kpanel-client-update.deb"
     urlretrieve(package_url, deb_path)
-    subprocess.run(["dpkg", "-i", deb_path], check=True)
-    subprocess.run(["apt-get", "-f", "-y", "install"], check=True)
+    subprocess.run(["sudo", "dpkg", "-i", deb_path], check=True)
+    subprocess.run(["sudo", "apt-get", "-f", "-y", "install"], check=True)
     return True, f"Installed update from package URL: {package_url}"
 
 
@@ -49,9 +50,10 @@ def _run_update_install(target_version: str | None = None, package_url: str | No
             return _install_direct_package(package_url)
         if apt_error is not None:
             return False, str(apt_error)
-        subprocess.run(["apt-get", "update"], check=True)
+        subprocess.run(["sudo", "apt-get", "update"], check=True)
         subprocess.run(
             [
+                "sudo",
                 "apt-get",
                 "install",
                 "-y",

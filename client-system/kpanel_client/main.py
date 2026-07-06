@@ -8,6 +8,7 @@ from kpanel_client.device_state import generate_registration_code, load_or_creat
 from kpanel_client.hotspot import start_hotspot, stop_hotspot
 from kpanel_client.network import has_internet, is_url_reachable
 from kpanel_client.pending_actions import CommandResult, run_pending_action
+from kpanel_client.updater import _run_update_install
 from kpanel_client.ui import (
     get_kiosk_url,
     hide_registration_prompt,
@@ -47,13 +48,21 @@ def _default_command_runner(command: list[str]) -> CommandResult:
     return CommandResult(returncode=result.returncode)
 
 
-def _run_pending_action(api: KPanelApiClient, cfg: ClientConfig, registration_code: str, action: str) -> None:
+def _run_pending_action(
+    api: KPanelApiClient,
+    cfg: ClientConfig,
+    registration_code: str,
+    action: str,
+    update_policy: dict | None = None,
+) -> None:
     run_pending_action(
         api,
         device_id=cfg.device_id,
         registration_code=registration_code,
         action=action,
         runner=_default_command_runner,
+        update_policy=update_policy,
+        update_installer=_run_update_install,
         on_reboot_ack_failed=lambda: print(
             "Failed to acknowledge reboot action; skipping reboot to avoid loop"
         ),
@@ -195,7 +204,13 @@ def run() -> None:
             continue
 
         if resolved.pending_action:
-            _run_pending_action(api, cfg, state.registration_code, resolved.pending_action)
+            _run_pending_action(
+                api,
+                cfg,
+                state.registration_code,
+                resolved.pending_action,
+                update_policy=resolved.update,
+            )
 
         hide_registration_prompt()
         launch_kiosk(resolved.configured_url)
