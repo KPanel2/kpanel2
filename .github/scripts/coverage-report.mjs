@@ -1,13 +1,16 @@
 #!/usr/bin/env node
 /**
- * Parse coverage output, emit GitHub warnings, write job summary, and optional JSON.
- * Never fails the workflow.
+ * Parse coverage output, emit GitHub warnings/errors, write job summary, and optional JSON.
+ * Fails the workflow when overall or PR new-code line coverage is below --fail-threshold.
+ * Emits a warning when PR new-code coverage is below --pr-warn-threshold.
  *
  * Usage:
- *   node coverage-report.mjs <summary.json|test.log> <label> [threshold] [options]
+ *   node coverage-report.mjs <summary.json|test.log> <label> [fail-threshold] [options]
  *
  * Options:
  *   --json-out path
+ *   --fail-threshold N        (default: positional arg or 80)
+ *   --pr-warn-threshold N     (default: 90)
  *   --diff-base ref
  *   --diff-format pytest|karma-html
  *   --diff-coverage-path path
@@ -16,6 +19,7 @@
  */
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { computePrCoverage, roundPct } from './pr-diff-coverage.mjs';
 
@@ -23,7 +27,8 @@ function parseArgs(argv) {
   const options = {
     inputPath: null,
     label: null,
-    threshold: 80,
+    failThreshold: 80,
+    prWarnThreshold: 90,
     jsonOut: null,
     diffBase: process.env.DIFF_BASE_REF ?? null,
     diffFormat: null,
@@ -37,6 +42,12 @@ function parseArgs(argv) {
     const arg = argv[index];
     if (arg === '--json-out') {
       options.jsonOut = argv[index + 1];
+      index += 1;
+    } else if (arg === '--fail-threshold') {
+      options.failThreshold = Number(argv[index + 1]);
+      index += 1;
+    } else if (arg === '--pr-warn-threshold') {
+      options.prWarnThreshold = Number(argv[index + 1]);
       index += 1;
     } else if (arg === '--diff-base') {
       options.diffBase = argv[index + 1];
@@ -58,17 +69,55 @@ function parseArgs(argv) {
     }
   }
 
-  [options.inputPath, options.label, options.threshold] = [
+  let positionalFailThreshold;
+  [options.inputPath, options.label, positionalFailThreshold] = [
     positional[0] ?? null,
     positional[1] ?? null,
-    Number(positional[2] ?? options.threshold),
+    positional[2] ?? null,
   ];
+
+  if (positionalFailThreshold != null && !Number.isNaN(Number(positionalFailThreshold))) {
+    options.failThreshold = Number(positionalFailThreshold);
+  }
 
   return options;
 }
 
+export function evaluateCoverageThresholds({
+  lines,
+  prLines,
+  prCoverage,
+  failThreshold,
+  prWarnThreshold,
+}) {
+  const roundedLines = lines == null ? null : roundPct(lines);
+  const roundedPrLines = prLines == null ? null : roundPct(prLines);
+  const prApplicable = Boolean(
+    prCoverage?.available
+    && !prCoverage.noChanges
+    && !prCoverage.noCoverableChanges
+    && roundedPrLines != null,
+  );
+
+  const belowFailThreshold = roundedLines != null && roundedLines < failThreshold;
+  const prBelowFailThreshold = prApplicable && roundedPrLines < failThreshold;
+  const prBelowWarnThreshold = prApplicable && roundedPrLines < prWarnThreshold;
+
+  return {
+    belowFailThreshold,
+    prBelowFailThreshold,
+    prBelowWarnThreshold,
+    shouldFail: belowFailThreshold || prBelowFailThreshold,
+    shouldWarnPr: prBelowWarnThreshold && !prBelowFailThreshold,
+  };
+}
+
 function warn(message) {
   console.log(`::warning::${message}`);
+}
+
+function error(message) {
+  console.log(`::error::${message}`);
 }
 
 function parseJsonCoverage(data) {
@@ -116,13 +165,16 @@ function formatPrCoverage(prCoverage) {
   return `${prCoverage.lines}%`;
 }
 
-function buildResult(label, threshold, metrics, prCoverage) {
+function buildResult(label, failThreshold, prWarnThreshold, metrics, prCoverage) {
   const lines = metrics.lines;
   if (lines == null || Number.isNaN(Number(lines))) {
     return {
       label,
-      threshold,
+      failThreshold,
+      prWarnThreshold,
+      threshold: failThreshold,
       belowThreshold: false,
+      belowFailThreshold: false,
       parseError: true,
       metrics,
       prCoverage,
@@ -131,19 +183,31 @@ function buildResult(label, threshold, metrics, prCoverage) {
 
   const roundedLines = roundPct(lines);
   const prLines = prCoverage?.lines == null ? null : roundPct(prCoverage.lines);
-  const prBelowThreshold = prLines != null && prLines < threshold;
+  const thresholds = evaluateCoverageThresholds({
+    lines: roundedLines,
+    prLines,
+    prCoverage,
+    failThreshold,
+    prWarnThreshold,
+  });
 
   return {
     label,
-    threshold,
-    belowThreshold: roundedLines < threshold,
+    failThreshold,
+    prWarnThreshold,
+    threshold: failThreshold,
+    belowThreshold: thresholds.belowFailThreshold,
+    belowFailThreshold: thresholds.belowFailThreshold,
+    parseError: false,
     lines: roundedLines,
     statements: metrics.statements == null ? null : roundPct(metrics.statements),
     branches: metrics.branches == null ? null : roundPct(metrics.branches),
     functions: metrics.functions == null ? null : roundPct(metrics.functions),
     prCoverage,
     prLines,
-    prBelowThreshold,
+    prBelowThreshold: thresholds.prBelowFailThreshold,
+    prBelowFailThreshold: thresholds.prBelowFailThreshold,
+    prBelowWarnThreshold: thresholds.prBelowWarnThreshold,
     workflowUrl: process.env.GITHUB_SERVER_URL && process.env.GITHUB_REPOSITORY && process.env.GITHUB_RUN_ID
       ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
       : null,
@@ -164,9 +228,9 @@ function writeJobSummary(result) {
     return;
   }
 
-  const overallStatus = result.belowThreshold
-    ? `⚠️ Below recommended minimum (${result.threshold}%)`
-    : `✅ Meets recommended minimum (${result.threshold}%)`;
+  const overallStatus = result.belowFailThreshold
+    ? `❌ Below minimum (${result.failThreshold}%) — fails CI`
+    : `✅ Meets minimum (${result.failThreshold}%)`;
 
   const prStatus = !result.prCoverage?.available
     ? 'n/a'
@@ -174,9 +238,11 @@ function writeJobSummary(result) {
       ? 'No changed lines in this PR'
       : result.prCoverage.noCoverableChanges
         ? 'Changed lines are not coverable'
-        : result.prBelowThreshold
-          ? `⚠️ Below recommended minimum (${result.threshold}%)`
-          : `✅ Meets recommended minimum (${result.threshold}%)`;
+        : result.prBelowFailThreshold
+          ? `❌ Below minimum (${result.failThreshold}%) — fails CI`
+          : result.prBelowWarnThreshold
+            ? `⚠️ Below recommended (${result.prWarnThreshold}%)`
+            : `✅ Meets recommended (${result.prWarnThreshold}%)`;
 
   const rows = [
     ['Overall lines', formatPct(result.lines)],
@@ -201,75 +267,99 @@ function writeJobSummary(result) {
   appendFileSync(summaryPath, `${table}\n`);
 }
 
-function emitWarnings(result) {
+function emitCoverageMessages(result) {
   if (result.parseError) {
     warn(`${result.label} coverage report does not include a line coverage percentage`);
-    return;
+    return false;
   }
 
-  if (result.belowThreshold) {
-    warn(`${result.label} overall line coverage is ${result.lines}% (recommended minimum: ${result.threshold}%)`);
+  let failed = false;
+
+  if (result.belowFailThreshold) {
+    error(
+      `${result.label} overall line coverage is ${result.lines}% `
+      + `(minimum: ${result.failThreshold}%)`,
+    );
+    failed = true;
   } else {
     console.log(`${result.label} overall line coverage: ${result.lines}%`);
   }
 
-  if (result.prBelowThreshold) {
+  if (result.prBelowFailThreshold) {
+    error(
+      `${result.label} PR new-code line coverage is ${result.prLines}% `
+      + `(minimum: ${result.failThreshold}%)`,
+    );
+    failed = true;
+  } else if (result.prBelowWarnThreshold) {
     warn(
       `${result.label} PR new-code line coverage is ${result.prLines}% `
-      + `(recommended minimum: ${result.threshold}%)`,
+      + `(recommended: ${result.prWarnThreshold}%)`,
     );
   } else if (result.prLines != null) {
     console.log(`${result.label} PR new-code line coverage: ${result.prLines}%`);
   }
+
+  return failed;
 }
 
-const options = parseArgs(process.argv.slice(2));
-const { inputPath, label, threshold } = options;
+function main() {
+  const options = parseArgs(process.argv.slice(2));
+  const { inputPath, label, failThreshold, prWarnThreshold } = options;
 
-if (!inputPath || !label) {
-  warn('Coverage check skipped: missing input path or label');
-  process.exit(0);
-}
-
-const absolutePath = resolve(inputPath);
-if (!existsSync(absolutePath)) {
-  warn(`${label} coverage report not found at ${inputPath}`);
-  process.exit(0);
-}
-
-const contents = readFileSync(absolutePath, 'utf8');
-let metrics;
-
-if (inputPath.endsWith('.log')) {
-  metrics = parseLogCoverage(contents);
-} else {
-  try {
-    metrics = parseJsonCoverage(JSON.parse(contents));
-  } catch {
-    warn(`${label} coverage report at ${inputPath} is not valid JSON`);
+  if (!inputPath || !label) {
+    warn('Coverage check skipped: missing input path or label');
     process.exit(0);
   }
-}
 
-let prCoverage = { available: false };
-if (options.diffBase && options.diffFormat && options.diffCoveragePath) {
-  try {
-    prCoverage = computePrCoverage({
-      baseRef: options.diffBase,
-      format: options.diffFormat,
-      coveragePath: options.diffCoveragePath,
-      sourceRoot: options.diffSourceRoot ?? undefined,
-      repoPathPrefix: options.diffRepoPathPrefix,
-    });
-  } catch (error) {
-    warn(`${label} PR diff coverage failed: ${error.message}`);
+  const absolutePath = resolve(inputPath);
+  if (!existsSync(absolutePath)) {
+    warn(`${label} coverage report not found at ${inputPath}`);
+    process.exit(0);
+  }
+
+  const contents = readFileSync(absolutePath, 'utf8');
+  let metrics;
+
+  if (inputPath.endsWith('.log')) {
+    metrics = parseLogCoverage(contents);
+  } else {
+    try {
+      metrics = parseJsonCoverage(JSON.parse(contents));
+    } catch {
+      warn(`${label} coverage report at ${inputPath} is not valid JSON`);
+      process.exit(0);
+    }
+  }
+
+  let prCoverage = { available: false };
+  if (options.diffBase && options.diffFormat && options.diffCoveragePath) {
+    try {
+      prCoverage = computePrCoverage({
+        baseRef: options.diffBase,
+        format: options.diffFormat,
+        coveragePath: options.diffCoveragePath,
+        sourceRoot: options.diffSourceRoot ?? undefined,
+        repoPathPrefix: options.diffRepoPathPrefix,
+      });
+    } catch (error) {
+      warn(`${label} PR diff coverage failed: ${error.message}`);
+    }
+  }
+
+  const result = buildResult(label, failThreshold, prWarnThreshold, metrics, prCoverage);
+  const failed = emitCoverageMessages(result);
+  writeJobSummary(result);
+
+  if (options.jsonOut) {
+    writeFileSync(options.jsonOut, `${JSON.stringify(result, null, 2)}\n`);
+  }
+
+  if (failed) {
+    process.exit(1);
   }
 }
 
-const result = buildResult(label, threshold, metrics, prCoverage);
-emitWarnings(result);
-writeJobSummary(result);
-
-if (options.jsonOut) {
-  writeFileSync(options.jsonOut, `${JSON.stringify(result, null, 2)}\n`);
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main();
 }

@@ -71,7 +71,8 @@ jobs:
           args=(
             test-frontend.log
             Frontend
-            80
+            --fail-threshold 80
+            --pr-warn-threshold 90
             --json-out coverage-frontend.json
           )
           if [ -n "$DIFF_BASE_REF" ]; then
@@ -142,7 +143,8 @@ jobs:
           args=(
             backend/coverage/coverage.json
             Backend
-            80
+            --fail-threshold 80
+            --pr-warn-threshold 90
             --json-out coverage-backend.json
           )
           if [ -n "$DIFF_BASE_REF" ]; then

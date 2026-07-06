@@ -60,3 +60,8 @@ def client(test_app_db):
 @pytest.fixture()
 def db_session(test_app_db):
     return test_app_db[1]
+
+
+@pytest.fixture()
+def dev_auth_enabled(monkeypatch):
+    monkeypatch.setattr("app.kumpe_auth_config.settings.dev_auth_enabled", True)
