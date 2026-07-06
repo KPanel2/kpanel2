@@ -12,7 +12,7 @@ from kpanel_client.main import (
     _run_pending_action,
     run,
 )
-from kpanel_client.pending_actions import CommandResult
+from kpanel_client.pending_actions import CommandResult, PendingActionResult, normalize_action
 from kpanel_client.updater import _run_update_install
 from tests.conftest import FakeApi
 
@@ -67,7 +67,16 @@ def run_context(tmp_path, monkeypatch, stop_after_two_loops):
     monkeypatch.setattr("kpanel_client.main.stop_kiosk", lambda: record("stop_kiosk"))
     monkeypatch.setattr("kpanel_client.main.launch_kiosk", lambda url: record("launch_kiosk", url))
     monkeypatch.setattr("kpanel_client.main.stop_hotspot", lambda iface: record("stop_hotspot", iface))
-    monkeypatch.setattr("kpanel_client.main._run_pending_action", lambda *args, **kwargs: record("run_pending_action", args[-1]))
+    def mock_run_pending_action(*args, **kwargs):
+        action = kwargs.get("action")
+        if action is None and len(args) >= 4:
+            action = args[3]
+        record("run_pending_action", action)
+        if normalize_action(action) == "reboot":
+            return PendingActionResult(defer_kiosk=True)
+        return PendingActionResult()
+
+    monkeypatch.setattr("kpanel_client.main._run_pending_action", mock_run_pending_action)
     monkeypatch.setattr("kpanel_client.main._apply_timezone", lambda tz: record("apply_timezone", tz))
     monkeypatch.setattr("kpanel_client.main.has_internet", lambda _url: True)
 
@@ -106,12 +115,16 @@ def test_apply_timezone_reports_exception(capsys):
 
 def test_default_command_runner_returns_subprocess_exit_code():
     with patch("kpanel_client.main.subprocess.run") as run:
-        run.return_value = MagicMock(returncode=17)
+        run.return_value = MagicMock(returncode=17, stderr=b"")
 
-        result = _default_command_runner(["systemctl", "reboot"])
+        result = _default_command_runner(["sudo", "systemctl", "reboot"])
 
-    assert result == CommandResult(returncode=17)
-    run.assert_called_once_with(["systemctl", "reboot"], check=False)
+    assert result == CommandResult(returncode=17, stderr="")
+    run.assert_called_once_with(
+        ["sudo", "systemctl", "reboot"],
+        check=False,
+        capture_output=True,
+    )
 
 
 def test_run_pending_action_delegates_to_service():
@@ -237,6 +250,42 @@ def test_run_executes_pending_action_before_launch(run_context):
         run()
 
     assert ("run_pending_action", "reboot") in run_context.ui_calls
+    assert ("launch_kiosk", "https://dashboard.example.com") not in run_context.ui_calls
+
+
+def test_run_launches_kiosk_when_reboot_ack_fails(run_context, monkeypatch):
+    from kpanel_client.pending_actions import PendingActionResult
+
+    load_or_create_state(str(run_context.state_path), "KPANEL-ACKFAIL")
+    run_context.api.resolve = ResolveResult(
+        status="configured",
+        configured_url="https://dashboard.example.com",
+        pending_action="reboot",
+    )
+    monkeypatch.setattr(
+        "kpanel_client.main._run_pending_action",
+        lambda *args, **kwargs: PendingActionResult(defer_kiosk=False),
+    )
+
+    with pytest.raises(StopRun):
+        run()
+
+    assert ("launch_kiosk", "https://dashboard.example.com") in run_context.ui_calls
+
+
+def test_run_launches_kiosk_after_update_action(run_context):
+    load_or_create_state(str(run_context.state_path), "KPANEL-UPDATE")
+    run_context.api.resolve = ResolveResult(
+        status="configured",
+        configured_url="https://dashboard.example.com",
+        pending_action="update",
+        update={"target_version": "2.0.0"},
+    )
+
+    with pytest.raises(StopRun):
+        run()
+
+    assert ("run_pending_action", "update") in run_context.ui_calls
     assert ("launch_kiosk", "https://dashboard.example.com") in run_context.ui_calls
 
 
@@ -257,9 +306,10 @@ def test_run_passes_update_policy_to_pending_action(run_context, monkeypatch):
     captured: dict[str, object] = {}
     monkeypatch.setattr(
         "kpanel_client.main._run_pending_action",
-        lambda api, cfg, code, action, update_policy=None: captured.update(
-            {"action": action, "update_policy": update_policy}
-        ),
+        lambda api, cfg, code, action, update_policy=None: (
+            captured.update({"action": action, "update_policy": update_policy}),
+            PendingActionResult(),
+        )[1],
     )
 
     with pytest.raises(StopRun):

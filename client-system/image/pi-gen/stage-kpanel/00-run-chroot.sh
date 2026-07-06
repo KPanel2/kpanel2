@@ -61,12 +61,18 @@ systemctl enable kpanel-pi-self-heal.service || true
 # Apply appliance defaults in-image immediately and reassert them on every boot.
 /usr/local/sbin/kpanel-pi-self-heal || true
 
-# Ensure the pi user can set the system timezone without a password (required
-# by kpanel-client which runs as pi but calls timedatectl set-timezone).
+# Ensure the pi user can run privileged maintenance commands without a password.
 mkdir -p /etc/sudoers.d
-printf 'pi ALL=(root) NOPASSWD: /usr/bin/timedatectl set-timezone *\n' \
-    > /etc/sudoers.d/kpanel-timedatectl
-chmod 440 /etc/sudoers.d/kpanel-timedatectl
+SYSTEMCTL_PATH="$(command -v systemctl || echo /usr/bin/systemctl)"
+cat >/etc/sudoers.d/kpanel-client <<EOF
+pi ALL=(root) NOPASSWD: /usr/bin/timedatectl set-timezone *
+pi ALL=(root) NOPASSWD: ${SYSTEMCTL_PATH} reboot
+pi ALL=(root) NOPASSWD: /usr/bin/apt-get update
+pi ALL=(root) NOPASSWD: /usr/bin/apt-get install *
+pi ALL=(root) NOPASSWD: /usr/bin/dpkg *
+EOF
+chmod 440 /etc/sudoers.d/kpanel-client
+rm -f /etc/sudoers.d/kpanel-timedatectl
 
 # Ensure chromium can start with user session defaults.
 if [ -f /etc/chromium-browser/default ]; then

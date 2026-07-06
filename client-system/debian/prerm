@@ -8,4 +8,4 @@ if systemctl list-unit-files | grep -q "$SERVICE_NAME"; then
   systemctl disable "$SERVICE_NAME" || true
 fi
 
-rm -f /etc/sudoers.d/kpanel-timedatectl
+rm -f /etc/sudoers.d/kpanel-timedatectl /etc/sudoers.d/kpanel-client
