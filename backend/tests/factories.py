@@ -1,4 +1,14 @@
-from app.models import DeviceRegistration, User
+from app.kumpe_permissions import KPANEL_PROVIDER_NAME
+from app.models import (
+    DeviceRegistration,
+    Floor,
+    Household,
+    HouseholdMember,
+    HouseholdUrl,
+    Room,
+    User,
+    UserIdentity,
+)
 from tests.conftest import utcnow
 
 
@@ -45,3 +55,143 @@ def seed_device(
     db_session.commit()
     db_session.refresh(device)
     return device
+
+
+def seed_household(
+    db_session,
+    owner: User,
+    *,
+    name: str = "Test Household",
+    timezone: str | None = "America/Chicago",
+) -> Household:
+    timestamp = utcnow()
+    household = Household(
+        name=name,
+        timezone=timezone,
+        owner_id=owner.id,
+        created_at=timestamp,
+        updated_at=timestamp,
+    )
+    db_session.add(household)
+    db_session.flush()
+    db_session.add(
+        HouseholdMember(
+            household_id=household.id,
+            user_id=owner.id,
+            role="owner",
+            created_at=timestamp,
+        )
+    )
+    db_session.commit()
+    db_session.refresh(household)
+    return household
+
+
+def seed_household_member(
+    db_session,
+    *,
+    household_id: int,
+    user_id: int,
+    role: str = "member",
+) -> HouseholdMember:
+    member = HouseholdMember(
+        household_id=household_id,
+        user_id=user_id,
+        role=role,
+        created_at=utcnow(),
+    )
+    db_session.add(member)
+    db_session.commit()
+    db_session.refresh(member)
+    return member
+
+
+def seed_household_url(
+    db_session,
+    *,
+    household_id: int,
+    friendly_name: str = "Dashboard",
+    url_template: str = "https://example.com/{device}",
+    is_default: bool = False,
+) -> HouseholdUrl:
+    timestamp = utcnow()
+    household_url = HouseholdUrl(
+        household_id=household_id,
+        friendly_name=friendly_name,
+        url_template=url_template,
+        is_default=is_default,
+        created_at=timestamp,
+        updated_at=timestamp,
+    )
+    db_session.add(household_url)
+    db_session.commit()
+    db_session.refresh(household_url)
+    return household_url
+
+
+def seed_floor(
+    db_session,
+    *,
+    household_id: int,
+    name: str = "Main Floor",
+    sort_order: int = 0,
+) -> Floor:
+    timestamp = utcnow()
+    floor = Floor(
+        household_id=household_id,
+        name=name,
+        sort_order=sort_order,
+        created_at=timestamp,
+        updated_at=timestamp,
+    )
+    db_session.add(floor)
+    db_session.commit()
+    db_session.refresh(floor)
+    return floor
+
+
+def seed_room(
+    db_session,
+    *,
+    household_id: int,
+    name: str = "Kitchen",
+    floor_id: int | None = None,
+    sort_order: int = 0,
+) -> Room:
+    timestamp = utcnow()
+    room = Room(
+        household_id=household_id,
+        floor_id=floor_id,
+        name=name,
+        sort_order=sort_order,
+        created_at=timestamp,
+        updated_at=timestamp,
+    )
+    db_session.add(room)
+    db_session.commit()
+    db_session.refresh(room)
+    return room
+
+
+def seed_user_identity(
+    db_session,
+    user: User,
+    *,
+    provider_subject: str = "auth-subject-1",
+    email: str | None = None,
+    display_name: str | None = None,
+) -> UserIdentity:
+    timestamp = utcnow()
+    identity = UserIdentity(
+        user_id=user.id,
+        provider_name=KPANEL_PROVIDER_NAME,
+        provider_subject=provider_subject,
+        email=email or user.email,
+        display_name=display_name or user.display_name,
+        created_at=timestamp,
+        updated_at=timestamp,
+    )
+    db_session.add(identity)
+    db_session.commit()
+    db_session.refresh(identity)
+    return identity

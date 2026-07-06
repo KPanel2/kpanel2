@@ -107,14 +107,19 @@ function statusFor(result, { pr = false } = {}) {
     if (prValue.noChanges || prValue.noCoverableChanges || result.prLines == null) {
       return '—';
     }
-    return result.prBelowThreshold
-      ? `⚠️ Below ${result.threshold}%`
-      : `✅ Meets ${result.threshold}%`;
+    if (result.prBelowFailThreshold) {
+      return `❌ Below ${result.failThreshold ?? result.threshold}%`;
+    }
+    if (result.prBelowWarnThreshold) {
+      return `⚠️ Below ${result.prWarnThreshold ?? 90}%`;
+    }
+    return `✅ Meets ${result.prWarnThreshold ?? 90}%`;
   }
 
-  return result.belowThreshold
-    ? `⚠️ Below ${result.threshold}%`
-    : `✅ Meets ${result.threshold}%`;
+  if (result.belowFailThreshold ?? result.belowThreshold) {
+    return `❌ Below ${result.failThreshold ?? result.threshold}%`;
+  }
+  return `✅ Meets ${result.failThreshold ?? result.threshold}%`;
 }
 
 function renderComment(data) {
@@ -126,7 +131,7 @@ function renderComment(data) {
       ? `[${suiteLabel}](${result.workflowUrl})`
       : suiteLabel;
 
-    return `| ${workflowLink} | ${formatPct(result?.lines)} | ${formatPrCoverage(result)} | ${result?.threshold ?? 80}% | ${statusFor(result)} | ${statusFor(result, { pr: true })} |`;
+    return `| ${workflowLink} | ${formatPct(result?.lines)} | ${formatPrCoverage(result)} | ${result?.failThreshold ?? result?.threshold ?? 80}% / ${result?.prWarnThreshold ?? 90}% | ${statusFor(result)} | ${statusFor(result, { pr: true })} |`;
   });
 
   const sha = process.env.GITHUB_SHA?.slice(0, 7) ?? 'unknown';
@@ -135,9 +140,10 @@ function renderComment(data) {
     MARKER,
     '## 📊 Test coverage',
     '',
-    'Tests must pass for merge. Coverage below 80% is reported as a warning only.',
+    'Overall and PR new-code line coverage must stay at or above **80%** (CI fails below that).',
+    'PR new-code coverage below **90%** is reported as a warning.',
     '',
-    '| Suite | Overall | PR new code | Target | Overall status | PR new code status |',
+    '| Suite | Overall | PR new code | Fail / warn | Overall status | PR new code status |',
     '| --- | --- | --- | --- | --- | --- |',
     ...rows,
     '',

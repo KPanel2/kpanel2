@@ -7,24 +7,7 @@ from kpanel_client.pending_actions import (
     normalize_action,
     run_pending_action,
 )
-
-
-class FakeApi:
-    def __init__(self, ack_results: list[bool] | None = None):
-        self.ack_results = list(ack_results or [])
-        self.calls: list[tuple[str, str, str, str]] = []
-
-    def ack_device_action(
-        self,
-        device_id: str,
-        registration_code: str,
-        action: str,
-        status: str,
-    ) -> bool:
-        self.calls.append((device_id, registration_code, action, status))
-        if self.ack_results:
-            return self.ack_results.pop(0)
-        return True
+from tests.conftest import FakeApi
 
 
 def test_normalize_action():
@@ -45,7 +28,7 @@ def test_run_pending_action_ignores_unsupported_actions(action):
         runner=lambda command: commands.append(command) or CommandResult(returncode=0),
     )
 
-    assert api.calls == []
+    assert api.ack_calls == []
     assert commands == []
 
 
@@ -61,7 +44,7 @@ def test_run_pending_action_reboots_after_successful_ack():
         runner=lambda command: commands.append(command) or CommandResult(returncode=0),
     )
 
-    assert api.calls == [("kpanel-test", "KPANEL-TEST01", "reboot", "started")]
+    assert api.ack_calls == [("kpanel-test", "KPANEL-TEST01", "reboot", "started")]
     assert commands == [REBOOT_COMMAND]
 
 
@@ -79,7 +62,7 @@ def test_run_pending_action_skips_reboot_when_ack_fails():
         on_reboot_ack_failed=lambda: failures.append("failed"),
     )
 
-    assert api.calls == [("kpanel-test", "KPANEL-TEST01", "reboot", "started")]
+    assert api.ack_calls == [("kpanel-test", "KPANEL-TEST01", "reboot", "started")]
     assert commands == []
     assert failures == ["failed"]
 
@@ -96,7 +79,7 @@ def test_run_pending_action_reports_update_success():
         runner=lambda command: commands.append(command) or CommandResult(returncode=0),
     )
 
-    assert api.calls == [
+    assert api.ack_calls == [
         ("kpanel-test", "KPANEL-TEST01", "update", "started"),
         ("kpanel-test", "KPANEL-TEST01", "update", "completed"),
     ]
@@ -115,7 +98,7 @@ def test_run_pending_action_reports_update_failure():
         runner=lambda command: commands.append(command) or CommandResult(returncode=1),
     )
 
-    assert api.calls == [
+    assert api.ack_calls == [
         ("kpanel-test", "KPANEL-TEST01", "update", "started"),
         ("kpanel-test", "KPANEL-TEST01", "update", "failed"),
     ]
