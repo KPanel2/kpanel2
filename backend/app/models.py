@@ -41,11 +41,13 @@ class Floor(Base):
 
 class Room(Base):
     __tablename__ = "rooms"
+    __table_args__ = (UniqueConstraint("household_id", "slug", name="uq_room_household_slug"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     household_id: Mapped[int] = mapped_column(ForeignKey("households.id"), nullable=False)
     floor_id: Mapped[int | None] = mapped_column(ForeignKey("floors.id"), nullable=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
+    slug: Mapped[str | None] = mapped_column(String(255), nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

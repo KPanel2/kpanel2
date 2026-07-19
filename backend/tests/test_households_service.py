@@ -3,7 +3,13 @@ from urllib.parse import quote
 import pytest
 from fastapi import HTTPException
 
-from app.households import _validate_timezone, expand_url_template, resolve_device_url
+from app.households import (
+    _ensure_room_slug_available,
+    _normalize_room_slug,
+    _validate_timezone,
+    expand_url_template,
+    resolve_device_url,
+)
 from tests.factories import (
     seed_device,
     seed_floor,
@@ -23,6 +29,25 @@ def test_validate_timezone_rejects_invalid_zone():
         _validate_timezone("Not/A/Zone")
     assert exc_info.value.status_code == 400
     assert "Invalid timezone" in exc_info.value.detail
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        (None, None),
+        ("", None),
+        ("  ", None),
+        (" kitchen ", "kitchen"),
+    ],
+)
+def test_normalize_room_slug(raw, expected):
+    assert _normalize_room_slug(raw) == expected
+
+
+def test_ensure_room_slug_available_allows_none(db_session):
+    user = seed_user(db_session)
+    household = seed_household(db_session, user)
+    _ensure_room_slug_available(db_session, household.id, None)
 
 
 def test_expand_url_template_without_room(db_session):
@@ -49,7 +74,13 @@ def test_expand_url_template_with_room_floor_household(db_session):
     user = seed_user(db_session)
     household = seed_household(db_session, user, name="Kumpe Home")
     floor = seed_floor(db_session, household_id=household.id, name="Main Floor")
-    room = seed_room(db_session, household_id=household.id, floor_id=floor.id, name="Kitchen")
+    room = seed_room(
+        db_session,
+        household_id=household.id,
+        floor_id=floor.id,
+        name="Kitchen",
+        slug="kitchen",
+    )
     device = seed_device(
         db_session,
         registration_code="KPANEL-EXP02",
@@ -71,6 +102,56 @@ def test_expand_url_template_with_room_floor_household(db_session):
         f"{quote('Kitchen', safe='')}/"
         f"{quote('Panel A', safe='')}"
     )
+
+
+def test_expand_url_template_with_room_slug(db_session):
+    user = seed_user(db_session)
+    household = seed_household(db_session, user, name="Kumpe Home")
+    room = seed_room(
+        db_session,
+        household_id=household.id,
+        name="Living Room",
+        slug="living-room",
+    )
+    device = seed_device(
+        db_session,
+        registration_code="KPANEL-EXP03",
+        device_id="kpanel-exp3",
+        user_id=user.id,
+        display_name="Panel B",
+        target_url="https://example.com",
+    )
+    device.room_id = room.id
+    db_session.commit()
+
+    template = "https://dash.example.com/{room.slug}/{room}/{device}"
+    result = expand_url_template(template, device, db_session)
+
+    assert result == (
+        f"https://dash.example.com/"
+        f"{quote('living-room', safe='')}/"
+        f"{quote('Living Room', safe='')}/"
+        f"{quote('Panel B', safe='')}"
+    )
+
+
+def test_expand_url_template_room_slug_empty_when_unset(db_session):
+    user = seed_user(db_session)
+    household = seed_household(db_session, user)
+    room = seed_room(db_session, household_id=household.id, name="Kitchen", slug=None)
+    device = seed_device(
+        db_session,
+        registration_code="KPANEL-EXP04",
+        device_id="kpanel-exp4",
+        user_id=user.id,
+        display_name="Panel C",
+        target_url="https://example.com",
+    )
+    device.room_id = room.id
+    db_session.commit()
+
+    result = expand_url_template("https://dash.example.com/{room.slug}", device, db_session)
+    assert result == "https://dash.example.com/"
 
 
 def test_resolve_device_url_prefers_temp_url(db_session):

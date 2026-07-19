@@ -254,11 +254,13 @@ def test_room_crud(client, db_session, dev_auth_enabled):
 
     create = client.post(
         f"/api/v1/households/{household.id}/rooms",
-        json={"name": "Office", "floor_id": floor.id},
+        json={"name": "Office", "floor_id": floor.id, "slug": "office"},
         headers=_dev_headers(user.email),
     )
     assert create.status_code == 200
-    room_id = create.json()["room"]["id"]
+    room = create.json()["room"]
+    room_id = room["id"]
+    assert room["slug"] == "office"
 
     listed = client.get(
         f"/api/v1/households/{household.id}/rooms",
@@ -266,14 +268,24 @@ def test_room_crud(client, db_session, dev_auth_enabled):
     )
     assert listed.status_code == 200
     assert len(listed.json()["rooms"]) == 1
+    assert listed.json()["rooms"][0]["slug"] == "office"
 
     updated = client.patch(
         f"/api/v1/households/{household.id}/rooms/{room_id}",
-        json={"name": "Study"},
+        json={"name": "Study", "slug": "study"},
         headers=_dev_headers(user.email),
     )
     assert updated.status_code == 200
     assert updated.json()["room"]["name"] == "Study"
+    assert updated.json()["room"]["slug"] == "study"
+
+    cleared = client.patch(
+        f"/api/v1/households/{household.id}/rooms/{room_id}",
+        json={"clear_slug": True},
+        headers=_dev_headers(user.email),
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["room"]["slug"] is None
 
     deleted = client.delete(
         f"/api/v1/households/{household.id}/rooms/{room_id}",
@@ -295,6 +307,49 @@ def test_create_room_invalid_floor(client, db_session, dev_auth_enabled):
 
     assert response.status_code == 400
     assert "Floor not found" in response.json()["detail"]
+
+
+def test_room_slug_unique_per_household(client, db_session, dev_auth_enabled):
+    user = seed_user(db_session)
+    household = seed_household(db_session, user)
+    other = seed_household(db_session, user, name="Other Home")
+
+    first = client.post(
+        f"/api/v1/households/{household.id}/rooms",
+        json={"name": "Kitchen", "slug": "kitchen"},
+        headers=_dev_headers(user.email),
+    )
+    assert first.status_code == 200
+
+    duplicate = client.post(
+        f"/api/v1/households/{household.id}/rooms",
+        json={"name": "Kitchen 2", "slug": "kitchen"},
+        headers=_dev_headers(user.email),
+    )
+    assert duplicate.status_code == 400
+    assert "slug" in duplicate.json()["detail"].lower()
+
+    elsewhere = client.post(
+        f"/api/v1/households/{other.id}/rooms",
+        json={"name": "Kitchen", "slug": "kitchen"},
+        headers=_dev_headers(user.email),
+    )
+    assert elsewhere.status_code == 200
+    assert elsewhere.json()["room"]["slug"] == "kitchen"
+
+
+def test_create_room_blank_slug_becomes_null(client, db_session, dev_auth_enabled):
+    user = seed_user(db_session)
+    household = seed_household(db_session, user)
+
+    response = client.post(
+        f"/api/v1/households/{household.id}/rooms",
+        json={"name": "Den", "slug": "  "},
+        headers=_dev_headers(user.email),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["room"]["slug"] is None
 
 
 # ---------- Household URLs ----------

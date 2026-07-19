@@ -76,6 +76,7 @@ def startup() -> None:
     Base.metadata.create_all(bind=engine)
     _ensure_device_registration_columns()
     _ensure_user_columns()
+    _ensure_room_columns()
 
 
 @app.get("/healthz")
@@ -216,6 +217,25 @@ def _ensure_user_columns() -> None:
     statements: list[str] = []
     if "timezone" not in columns:
         statements.append("ALTER TABLE users ADD COLUMN timezone VARCHAR(64) NOT NULL DEFAULT 'America/Chicago'")
+
+    if not statements:
+        return
+
+    with engine.begin() as connection:
+        for statement in statements:
+            connection.execute(text(statement))
+
+
+def _ensure_room_columns() -> None:
+    inspector = inspect(engine)
+    try:
+        columns = {column["name"] for column in inspector.get_columns("rooms")}
+    except Exception:
+        return
+
+    statements: list[str] = []
+    if "slug" not in columns:
+        statements.append("ALTER TABLE rooms ADD COLUMN slug VARCHAR(255)")
 
     if not statements:
         return

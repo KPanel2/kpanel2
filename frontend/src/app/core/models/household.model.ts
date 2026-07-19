@@ -12,6 +12,7 @@ export interface Room {
   household_id: number;
   floor_id: number | null;
   name: string;
+  slug: string | null;
   sort_order: number;
   created_at: string;
   updated_at: string;

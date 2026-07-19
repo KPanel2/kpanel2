@@ -16,10 +16,12 @@ export class RoomManagerComponent {
 
   creating = false;
   newName = '';
+  newSlug = '';
   newFloorId: number | null = null;
   newOrder = 0;
   editingRoom: Room | null = null;
   editName = '';
+  editSlug = '';
   editFloorId: number | null = null;
   editOrder = 0;
   error = '';
@@ -41,11 +43,13 @@ export class RoomManagerComponent {
 
   create(): void {
     if (!this.newName.trim()) return;
+    const slug = this.newSlug.trim() || null;
     this.householdService
-      .createRoom(this.household.id, this.newName.trim(), this.newFloorId ?? undefined, this.newOrder)
+      .createRoom(this.household.id, this.newName.trim(), this.newFloorId ?? undefined, this.newOrder, slug)
       .subscribe({
         next: () => {
           this.newName = '';
+          this.newSlug = '';
           this.newFloorId = null;
           this.newOrder = 0;
           this.creating = false;
@@ -58,6 +62,7 @@ export class RoomManagerComponent {
   startEdit(room: Room): void {
     this.editingRoom = room;
     this.editName = room.name;
+    this.editSlug = room.slug ?? '';
     this.editFloorId = room.floor_id;
     this.editOrder = room.sort_order;
     this.error = '';
@@ -65,8 +70,18 @@ export class RoomManagerComponent {
 
   saveEdit(): void {
     if (!this.editingRoom) return;
+    const slug = this.editSlug.trim();
+    const clearSlug = slug === '' && !!this.editingRoom.slug;
     this.householdService
-      .updateRoom(this.household.id, this.editingRoom.id, this.editName.trim(), this.editFloorId, this.editOrder)
+      .updateRoom(
+        this.household.id,
+        this.editingRoom.id,
+        this.editName.trim(),
+        this.editFloorId,
+        this.editOrder,
+        clearSlug ? null : slug || null,
+        clearSlug
+      )
       .subscribe({
         next: () => {
           this.editingRoom = null;
