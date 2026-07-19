@@ -157,12 +157,14 @@ def seed_room(
     name: str = "Kitchen",
     floor_id: int | None = None,
     sort_order: int = 0,
+    slug: str | None = None,
 ) -> Room:
     timestamp = utcnow()
     room = Room(
         household_id=household_id,
         floor_id=floor_id,
         name=name,
+        slug=slug,
         sort_order=sort_order,
         created_at=timestamp,
         updated_at=timestamp,

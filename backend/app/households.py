@@ -48,6 +48,7 @@ class RoomCreateRequest(BaseModel):
     name: str
     floor_id: int | None = None
     sort_order: int = 0
+    slug: str | None = None
 
 
 class RoomUpdateRequest(BaseModel):
@@ -55,6 +56,8 @@ class RoomUpdateRequest(BaseModel):
     floor_id: int | None = None
     sort_order: int | None = None
     clear_floor: bool = False
+    slug: str | None = None
+    clear_slug: bool = False
 
 
 class HouseholdUrlCreateRequest(BaseModel):
@@ -111,6 +114,7 @@ def _serialize_room(room: Room) -> dict:
         "household_id": room.household_id,
         "floor_id": room.floor_id,
         "name": room.name,
+        "slug": room.slug,
         "sort_order": room.sort_order,
     }
 
@@ -211,18 +215,43 @@ def _validate_timezone(tz: str) -> str:
     return tz
 
 
+def _normalize_room_slug(slug: str | None) -> str | None:
+    if slug is None:
+        return None
+    stripped = slug.strip()
+    return stripped or None
+
+
+def _ensure_room_slug_available(
+    db: Session,
+    household_id: int,
+    slug: str | None,
+    *,
+    exclude_room_id: int | None = None,
+) -> None:
+    if slug is None:
+        return
+    query = db.query(Room).filter(Room.household_id == household_id, Room.slug == slug)
+    if exclude_room_id is not None:
+        query = query.filter(Room.id != exclude_room_id)
+    if query.first() is not None:
+        raise HTTPException(status_code=400, detail="Room slug already exists in this household")
+
+
 def expand_url_template(template: str, device: DeviceRegistration, db: Session) -> str:
-    """Replace {device}, {room}, {floor}, {household} placeholders in a URL template."""
+    """Replace {device}, {room}, {room.slug}, {floor}, {household} placeholders in a URL template."""
     placeholders: dict[str, str] = {
         "device": device.display_name or "",
         "household": "",
         "floor": "",
         "room": "",
+        "room.slug": "",
     }
     if device.room_id:
         room = db.get(Room, device.room_id)
         if room:
             placeholders["room"] = room.name
+            placeholders["room.slug"] = room.slug or ""
             if room.floor_id:
                 floor = db.get(Floor, room.floor_id)
                 if floor:
@@ -232,8 +261,9 @@ def expand_url_template(template: str, device: DeviceRegistration, db: Session) 
                 placeholders["household"] = household.name
 
     result = template
-    for key, value in placeholders.items():
-        result = result.replace(f"{{{key}}}", quote(value, safe=""))
+    # Longer keys first so {room.slug} is not affected by naive replaces of shorter names.
+    for key in sorted(placeholders.keys(), key=len, reverse=True):
+        result = result.replace(f"{{{key}}}", quote(placeholders[key], safe=""))
     return result
 
 
@@ -604,11 +634,15 @@ def create_room(
         if floor is None or floor.household_id != household_id:
             raise HTTPException(status_code=400, detail="Floor not found in this household")
 
+    slug = _normalize_room_slug(req.slug)
+    _ensure_room_slug_available(db, household_id, slug)
+
     timestamp = now_utc()
     room = Room(
         household_id=household_id,
         floor_id=req.floor_id,
         name=req.name.strip(),
+        slug=slug,
         sort_order=req.sort_order,
         created_at=timestamp,
         updated_at=timestamp,
@@ -645,6 +679,14 @@ def update_room(
         if floor is None or floor.household_id != household_id:
             raise HTTPException(status_code=400, detail="Floor not found in this household")
         room.floor_id = req.floor_id
+        updated = True
+    if req.clear_slug:
+        room.slug = None
+        updated = True
+    elif req.slug is not None:
+        slug = _normalize_room_slug(req.slug)
+        _ensure_room_slug_available(db, household_id, slug, exclude_room_id=room.id)
+        room.slug = slug
         updated = True
     if req.sort_order is not None:
         room.sort_order = req.sort_order

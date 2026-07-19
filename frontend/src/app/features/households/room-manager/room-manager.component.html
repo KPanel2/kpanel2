@@ -8,6 +8,7 @@
 
   <div class="create-row" *ngIf="creating">
     <input type="text" [(ngModel)]="newName" placeholder="Room name (e.g. Living Room)" />
+    <input type="text" [(ngModel)]="newSlug" placeholder="Slug (optional, e.g. living-room)" />
     <select [(ngModel)]="newFloorId">
       <option [ngValue]="null">— No floor —</option>
       <option *ngFor="let f of floors" [ngValue]="f.id">{{ f.name }}</option>
@@ -24,6 +25,7 @@
     <div class="item-row" *ngFor="let room of rooms">
       <ng-container *ngIf="editingRoom?.id !== room.id">
         <span class="item-name">{{ room.name }}</span>
+        <span class="item-meta" *ngIf="room.slug">slug: {{ room.slug }}</span>
         <span class="item-meta">{{ floorName(room.floor_id) }}</span>
         <div class="item-actions">
           <button class="btn-ghost" (click)="startEdit(room)">Edit</button>
@@ -32,6 +34,7 @@
       </ng-container>
       <ng-container *ngIf="editingRoom?.id === room.id">
         <input type="text" [(ngModel)]="editName" />
+        <input type="text" [(ngModel)]="editSlug" placeholder="Slug (optional)" />
         <select [(ngModel)]="editFloorId">
           <option [ngValue]="null">— No floor —</option>
           <option *ngFor="let f of floors" [ngValue]="f.id">{{ f.name }}</option>

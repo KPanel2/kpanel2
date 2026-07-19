@@ -8,7 +8,8 @@
 
   <p class="help-text">
     Use placeholders in URL templates:
-    <code>&#123;device&#125;</code>, <code>&#123;room&#125;</code>, <code>&#123;floor&#125;</code>, <code>&#123;household&#125;</code>
+    <code>&#123;device&#125;</code>, <code>&#123;room&#125;</code>, <code>&#123;room.slug&#125;</code>,
+    <code>&#123;floor&#125;</code>, <code>&#123;household&#125;</code>
   </p>
 
   <div class="create-block card" *ngIf="creating">
@@ -19,7 +20,7 @@
     <label class="field">
       <span>URL Template</span>
       <input type="text" [(ngModel)]="newTemplate"
-             placeholder="https://example.com/{room}/{device}" />
+             placeholder="https://example.com/{room.slug}/{device}" />
     </label>
     <label class="field checkbox-field">
       <input type="checkbox" [(ngModel)]="newIsDefault" />

@@ -259,7 +259,6 @@ def _chromium_kiosk_flags(user_data_dir: str) -> list[str]:
 
     return [
         "--kiosk",
-        "--incognito",
         f"--user-data-dir={user_data_dir}",
         "--no-first-run",
         "--noerrdialogs",

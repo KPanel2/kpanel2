@@ -61,15 +61,23 @@ describe('HouseholdService', () => {
 
     service.listRooms(1).subscribe();
     api.post.and.returnValue(of({ room: { id: 3 } }));
-    service.createRoom(1, 'Kitchen', 2, 0).subscribe();
+    service.createRoom(1, 'Kitchen', 2, 0, 'kitchen').subscribe();
     api.patch.and.returnValue(of({ room: { id: 3 } }));
-    service.updateRoom(1, 3, 'Dining', null, 1).subscribe();
+    service.updateRoom(1, 3, 'Dining', null, 1, 'dining').subscribe();
     service.deleteRoom(1, 3).subscribe();
 
     expect(api.post).toHaveBeenCalledWith('/api/v1/households/1/rooms', {
       name: 'Kitchen',
       floor_id: 2,
       sort_order: 0,
+      slug: 'kitchen',
+    });
+    expect(api.patch).toHaveBeenCalledWith('/api/v1/households/1/rooms/3', {
+      name: 'Dining',
+      floor_id: null,
+      sort_order: 1,
+      slug: 'dining',
+      clear_slug: false,
     });
   });
 
@@ -100,6 +108,19 @@ describe('HouseholdService', () => {
       name: 'Kitchen',
       floor_id: null,
       sort_order: 0,
+      slug: null,
+    });
+  });
+
+  it('clears a room slug on update', () => {
+    api.patch.and.returnValue(of({ room: { id: 3, slug: null } }));
+    service.updateRoom(1, 3, 'Dining', null, 1, null, true).subscribe();
+    expect(api.patch).toHaveBeenCalledWith('/api/v1/households/1/rooms/3', {
+      name: 'Dining',
+      floor_id: null,
+      sort_order: 1,
+      slug: undefined,
+      clear_slug: true,
     });
   });
 });

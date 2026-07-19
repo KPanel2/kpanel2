@@ -74,11 +74,18 @@ export class HouseholdService {
     return this.api.get<{ rooms: Room[] }>(`/api/v1/households/${householdId}/rooms`).pipe(map(r => r.rooms));
   }
 
-  createRoom(householdId: number, name: string, floorId?: number, sortOrder = 0): Observable<Room> {
+  createRoom(
+    householdId: number,
+    name: string,
+    floorId?: number,
+    sortOrder = 0,
+    slug?: string | null
+  ): Observable<Room> {
     return this.api.post<{ room: Room }>(`/api/v1/households/${householdId}/rooms`, {
       name,
       floor_id: floorId ?? null,
       sort_order: sortOrder,
+      slug: slug ?? null,
     }).pipe(map(r => r.room));
   }
 
@@ -87,12 +94,16 @@ export class HouseholdService {
     roomId: number,
     name: string,
     floorId?: number | null,
-    sortOrder?: number
+    sortOrder?: number,
+    slug?: string | null,
+    clearSlug = false
   ): Observable<Room> {
     return this.api.patch<{ room: Room }>(`/api/v1/households/${householdId}/rooms/${roomId}`, {
       name,
       floor_id: floorId ?? null,
       sort_order: sortOrder,
+      slug: clearSlug ? undefined : slug ?? null,
+      clear_slug: clearSlug,
     }).pipe(map(r => r.room));
   }
 
