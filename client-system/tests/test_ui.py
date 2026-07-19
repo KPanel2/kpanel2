@@ -36,6 +36,7 @@ def reset_ui_state():
 def test_chromium_kiosk_flags_default():
     flags = _chromium_kiosk_flags("/tmp/profile")
     assert "--kiosk" in flags
+    assert "--incognito" not in flags
     assert "--user-data-dir=/tmp/profile" in flags
     assert "--disable-gpu-compositing" in flags
 
