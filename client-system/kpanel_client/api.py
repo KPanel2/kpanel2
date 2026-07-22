@@ -19,6 +19,7 @@ class ResolveResult:
     pending_action: str | None = None
     timezone: str | None = None
     update: dict | None = None
+    browser_auth: dict | None = None
     error: str = ""
 
 
@@ -116,6 +117,9 @@ class KPanelApiClient:
             pending_action=data.get("pending_action"),
             timezone=data.get("timezone"),
             update=data.get("update"),
+            browser_auth=data.get("browser_auth")
+            if isinstance(data.get("browser_auth"), dict)
+            else None,
         )
 
     def get_device_config(self, device_id: str) -> ResolveResult:
@@ -142,6 +146,9 @@ class KPanelApiClient:
             configured_url=data.get("configured_url"),
             pending_action=data.get("pending_action"),
             timezone=data.get("timezone"),
+            browser_auth=data.get("browser_auth")
+            if isinstance(data.get("browser_auth"), dict)
+            else None,
         )
 
     def ack_device_action(

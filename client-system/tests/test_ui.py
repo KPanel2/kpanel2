@@ -41,12 +41,107 @@ def test_chromium_kiosk_flags_default():
     assert "--disable-gpu-compositing" in flags
 
 
+def test_chromium_kiosk_flags_include_remote_debugging():
+    flags = _chromium_kiosk_flags("/tmp/profile", remote_debugging_port=9222)
+    assert "--remote-debugging-port=9222" in flags
+    assert "--remote-debugging-address=127.0.0.1" in flags
+
+
 def test_chromium_kiosk_flags_from_env(monkeypatch):
     monkeypatch.setenv("KPANEL_CHROMIUM_FLAGS", "--foo --bar")
     flags = _chromium_kiosk_flags("/tmp/profile")
     assert "--foo" in flags
     assert "--bar" in flags
     assert "--disable-gpu-compositing" not in flags
+
+
+@patch("kpanel_client.ui.subprocess.Popen")
+@patch("kpanel_client.ui.shutil.which", return_value="/usr/bin/chromium")
+@patch("kpanel_client.ui.os.makedirs")
+def test_launch_kiosk_seeds_hass_tokens(makedirs, which, popen, monkeypatch):
+    monkeypatch.delenv("KPANEL_CHROMIUM_PROFILE_DIR", raising=False)
+    proc = MagicMock()
+    proc.poll.return_value = None
+    popen.return_value = proc
+
+    class _Bootstrap:
+        ok = True
+        hass_tokens = {"access_token": "a", "refresh_token": "r"}
+        dashboard_url = "https://ha.example/lovelace/kiosk"
+
+    class _Seeder:
+        def __init__(self):
+            self.seeded = None
+            self.navigated = None
+
+        def seed_hass_tokens(self, tokens):
+            self.seeded = tokens
+
+        def navigate(self, url):
+            self.navigated = url
+
+    seeder = _Seeder()
+
+    launch_kiosk(
+        "https://ha.example/lovelace/kiosk",
+        browser_auth={
+            "type": "ha_hass_tokens",
+            "bootstrap_url": "https://ha.example/api/kpanel_dashboard/bootstrap",
+            "binding_secret": "secret",
+        },
+        fetch_bootstrap=lambda _auth: _Bootstrap(),
+        open_seeder=lambda _port: seeder,
+        remote_debugging_port=9222,
+    )
+
+    cmd = popen.call_args.args[0]
+    assert any(flag.startswith("--remote-debugging-port=") for flag in cmd)
+    assert cmd[-1] == "about:blank"
+    assert seeder.seeded == {"access_token": "a", "refresh_token": "r"}
+    assert seeder.navigated == "https://ha.example/lovelace/kiosk"
+
+
+@patch("kpanel_client.ui.subprocess.Popen")
+@patch("kpanel_client.ui.shutil.which", return_value="/usr/bin/chromium")
+@patch("kpanel_client.ui.os.makedirs")
+def test_launch_kiosk_prefers_room_url_over_bootstrap_dashboard(makedirs, which, popen, monkeypatch):
+    """HA binding supplies tokens; KPanel configured/room URL controls navigation."""
+    monkeypatch.delenv("KPANEL_CHROMIUM_PROFILE_DIR", raising=False)
+    proc = MagicMock()
+    proc.poll.return_value = None
+    popen.return_value = proc
+
+    class _Bootstrap:
+        ok = True
+        hass_tokens = {"access_token": "a", "refresh_token": "r"}
+        dashboard_url = "https://ha.example/control-panel"
+
+    class _Seeder:
+        def __init__(self):
+            self.navigated = None
+
+        def seed_hass_tokens(self, tokens):
+            return None
+
+        def navigate(self, url):
+            self.navigated = url
+
+    seeder = _Seeder()
+    room_url = "https://ha.example/control-panel/Office"
+
+    launch_kiosk(
+        room_url,
+        browser_auth={
+            "type": "ha_hass_tokens",
+            "bootstrap_url": "https://ha.example/api/kpanel_dashboard/bootstrap",
+            "binding_secret": "secret",
+        },
+        fetch_bootstrap=lambda _auth: _Bootstrap(),
+        open_seeder=lambda _port: seeder,
+        remote_debugging_port=9222,
+    )
+
+    assert seeder.navigated == room_url
 
 
 @patch("kpanel_client.ui.subprocess.Popen")

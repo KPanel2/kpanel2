@@ -70,6 +70,38 @@ def test_resolve_device_configured(client, db_session):
     assert body["configured_url"] == "https://kitchen.example.com"
     assert body["timezone"] == "America/Chicago"
     assert "update" in body
+    assert "browser_auth" not in body
+
+
+def test_resolve_device_includes_browser_auth(client, db_session):
+    user = seed_user(db_session)
+    device = seed_device(
+        db_session,
+        registration_code="KPANEL-HA001",
+        device_id="kpanel-ha1",
+        user_id=user.id,
+        target_url="https://ha.example/lovelace/kiosk",
+    )
+    device.ha_bootstrap_url = "https://ha.example/api/kpanel_dashboard/bootstrap"
+    device.ha_binding_secret = "device-binding-secret"
+    db_session.commit()
+
+    response = client.post(
+        "/api/v1/devices/resolve",
+        json={
+            "device_id": "kpanel-ha1",
+            "registration_code": "KPANEL-HA001",
+        },
+        headers=_device_headers("kpanel-ha1"),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["browser_auth"] == {
+        "type": "ha_hass_tokens",
+        "bootstrap_url": "https://ha.example/api/kpanel_dashboard/bootstrap",
+        "binding_secret": "device-binding-secret",
+    }
 
 
 def test_resolve_device_forces_update_when_pending_action_is_update(client, db_session, monkeypatch):

@@ -5,13 +5,16 @@ import { ApiService } from './api.service';
 import { Device } from '../models/session.model';
 
 interface DeviceUpdatePayload {
-  display_name?: string;
-  target_url?: string;
-  timezone?: string;
+  display_name?: string | null;
+  target_url?: string | null;
+  timezone?: string | null;
   room_id?: number | null;
   clear_room?: boolean;
   url_mode?: string;
   household_url_id?: number | null;
+  ha_bootstrap_url?: string | null;
+  ha_binding_secret?: string | null;
+  clear_ha_binding?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })

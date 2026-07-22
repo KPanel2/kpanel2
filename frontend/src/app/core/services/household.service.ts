@@ -3,6 +3,7 @@ import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { ApiService } from './api.service';
 import { Household, Floor, Room, HouseholdUrl, Member } from '../models/household.model';
+import { HaBindingUpdate } from '../models/session.model';
 
 @Injectable({ providedIn: 'root' })
 export class HouseholdService {
@@ -22,8 +23,17 @@ export class HouseholdService {
     return this.api.post<{ household: Household }>('/api/v1/households', { name, timezone }).pipe(map(r => r.household));
   }
 
-  updateHousehold(id: number, name: string, timezone?: string): Observable<Household> {
-    return this.api.patch<{ household: Household }>(`/api/v1/households/${id}`, { name, timezone }).pipe(map(r => r.household));
+  updateHousehold(
+    id: number,
+    name: string,
+    timezone?: string,
+    ha?: HaBindingUpdate
+  ): Observable<Household> {
+    return this.api.patch<{ household: Household }>(`/api/v1/households/${id}`, {
+      name,
+      timezone,
+      ...ha,
+    }).pipe(map(r => r.household));
   }
 
   deleteHousehold(id: number): Observable<unknown> {
@@ -96,7 +106,8 @@ export class HouseholdService {
     floorId?: number | null,
     sortOrder?: number,
     slug?: string | null,
-    clearSlug = false
+    clearSlug = false,
+    ha?: HaBindingUpdate
   ): Observable<Room> {
     return this.api.patch<{ room: Room }>(`/api/v1/households/${householdId}/rooms/${roomId}`, {
       name,
@@ -104,6 +115,7 @@ export class HouseholdService {
       sort_order: sortOrder,
       slug: clearSlug ? undefined : slug ?? null,
       clear_slug: clearSlug,
+      ...ha,
     }).pipe(map(r => r.room));
   }
 

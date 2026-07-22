@@ -27,22 +27,38 @@
         <span class="item-name">{{ room.name }}</span>
         <span class="item-meta" *ngIf="room.slug">slug: {{ room.slug }}</span>
         <span class="item-meta">{{ floorName(room.floor_id) }}</span>
+        <span class="item-meta" *ngIf="room.has_ha_binding">HA binding</span>
         <div class="item-actions">
           <button class="btn-ghost" (click)="startEdit(room)">Edit</button>
           <button class="btn-danger-ghost" (click)="delete(room)">Delete</button>
         </div>
       </ng-container>
       <ng-container *ngIf="editingRoom?.id === room.id">
-        <input type="text" [(ngModel)]="editName" />
-        <input type="text" [(ngModel)]="editSlug" placeholder="Slug (optional)" />
-        <select [(ngModel)]="editFloorId">
-          <option [ngValue]="null">— No floor —</option>
-          <option *ngFor="let f of floors" [ngValue]="f.id">{{ f.name }}</option>
-        </select>
-        <input type="number" [(ngModel)]="editOrder" style="width:80px" />
-        <div class="item-actions">
-          <button class="btn-primary" (click)="saveEdit()">Save</button>
-          <button class="btn-ghost" (click)="editingRoom = null">Cancel</button>
+        <div class="edit-block">
+          <input type="text" [(ngModel)]="editName" />
+          <input type="text" [(ngModel)]="editSlug" placeholder="Slug (optional)" />
+          <select [(ngModel)]="editFloorId">
+            <option [ngValue]="null">— No floor —</option>
+            <option *ngFor="let f of floors" [ngValue]="f.id">{{ f.name }}</option>
+          </select>
+          <input type="number" [(ngModel)]="editOrder" style="width:80px" />
+          <fieldset class="ha-binding">
+            <legend>HA auth bridge</legend>
+            <input type="url" [(ngModel)]="haBootstrapUrl"
+                   placeholder="Bootstrap URL"
+                   [disabled]="clearHaBinding" />
+            <input type="password" [(ngModel)]="haBindingSecret"
+                   [placeholder]="editingRoom?.has_ha_binding ? 'Keep current secret' : 'Binding secret'"
+                   [disabled]="clearHaBinding" autocomplete="new-password" />
+            <label class="checkbox" *ngIf="editingRoom?.has_ha_binding">
+              <input type="checkbox" [(ngModel)]="clearHaBinding" />
+              Clear room HA binding
+            </label>
+          </fieldset>
+          <div class="item-actions">
+            <button class="btn-primary" (click)="saveEdit()">Save</button>
+            <button class="btn-ghost" (click)="editingRoom = null">Cancel</button>
+          </div>
         </div>
       </ng-container>
     </div>

@@ -244,4 +244,15 @@ export class AuthService {
       )),
     );
   }
+
+  updateHaBinding(payload: {
+    ha_bootstrap_url?: string | null;
+    ha_binding_secret?: string | null;
+    clear_ha_binding?: boolean;
+  }): Observable<SessionState> {
+    return this.api.patch<SessionState>('/api/v1/account/profile', payload).pipe(
+      map(session => this.applyLocalSecurityPolicy(session)),
+      tap(session => this.applySessionState(session)),
+    );
+  }
 }

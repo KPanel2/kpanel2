@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db_session
 from app.device_actions import queue_device_action
+from app.ha_binding import apply_ha_binding_update, normalize_ha_bootstrap_url
 from app.households import resolve_device_url
 from app.kumpe_auth import AuthContext, require_authenticated, require_user_with_permission
 from app.kumpe_permissions import Permissions
@@ -31,6 +32,14 @@ class AccountCreateRequest(BaseModel):
 
 class AccountProfileUpdateRequest(BaseModel):
     timezone: str | None = None
+    ha_bootstrap_url: str | None = None
+    ha_binding_secret: str | None = None
+    clear_ha_binding: bool = False
+
+    @field_validator("ha_bootstrap_url", mode="before")
+    @classmethod
+    def _validate_ha_bootstrap_url(cls, v: object) -> object:
+        return normalize_ha_bootstrap_url(v)
 
 
 class ClaimDeviceRequest(BaseModel):
@@ -61,6 +70,9 @@ class DeviceUpdateRequest(BaseModel):
     clear_room: bool = False
     url_mode: str | None = None
     household_url_id: int | None = None
+    ha_bootstrap_url: str | None = None
+    ha_binding_secret: str | None = None
+    clear_ha_binding: bool = False
 
     @field_validator("target_url", mode="before")
     @classmethod
@@ -74,6 +86,11 @@ class DeviceUpdateRequest(BaseModel):
                 raise ValueError("Display URL must start with http:// or https://")
             return cleaned
         return v
+
+    @field_validator("ha_bootstrap_url", mode="before")
+    @classmethod
+    def _validate_ha_bootstrap_url(cls, v: object) -> object:
+        return normalize_ha_bootstrap_url(v)
 
 
 class DeviceTempUrlSetRequest(BaseModel):
@@ -156,17 +173,30 @@ def account_update_profile(
     db: Session = Depends(get_db_session),
 ) -> dict:
     auth, user = auth_user
+    updated = False
+
     if auth.dev_mode and req.timezone is not None:
         user.timezone = _validate_timezone(req.timezone.strip())
-        user.updated_at = now_utc()
-        db.commit()
-        permissions = resolve_user_permissions(auth)
-        return build_session_state(auth, db, permissions)
+        updated = True
 
-    raise HTTPException(
-        status_code=400,
-        detail="Profile is managed in KumpeCloud Auth. Use the Account Center to update your profile.",
-    )
+    if apply_ha_binding_update(
+        user,
+        clear_ha_binding=req.clear_ha_binding,
+        ha_bootstrap_url=req.ha_bootstrap_url,
+        ha_binding_secret=req.ha_binding_secret,
+    ):
+        updated = True
+
+    if not updated:
+        raise HTTPException(
+            status_code=400,
+            detail="Profile is managed in KumpeCloud Auth. Use the Account Center to update your profile.",
+        )
+
+    user.updated_at = now_utc()
+    db.commit()
+    permissions = resolve_user_permissions(auth)
+    return build_session_state(auth, db, permissions)
 
 
 @router.get("/devices")
@@ -287,6 +317,13 @@ def account_update_device(
         updated = True
     if req.household_url_id is not None:
         device.household_url_id = req.household_url_id
+        updated = True
+    if apply_ha_binding_update(
+        device,
+        clear_ha_binding=req.clear_ha_binding,
+        ha_bootstrap_url=req.ha_bootstrap_url,
+        ha_binding_secret=req.ha_binding_secret,
+    ):
         updated = True
 
     if not updated:

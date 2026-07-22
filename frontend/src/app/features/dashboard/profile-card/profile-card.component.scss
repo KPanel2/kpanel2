@@ -60,6 +60,78 @@
     gap: 0.4rem;
   }
 
+  .ha-binding {
+    margin-top: 1rem;
+    padding: 0.75rem 0 0;
+    border: none;
+    border-top: 1px solid var(--border);
+
+    legend {
+      font-weight: 600;
+      font-size: 0.9rem;
+      padding: 0;
+    }
+
+    .hint {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      margin: 0.35rem 0 0.75rem;
+      line-height: 1.4;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      margin-bottom: 0.75rem;
+
+      span {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--text-muted);
+      }
+
+      input[type='url'],
+      input[type='password'] {
+        padding: 0.5rem 0.65rem;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: var(--surface);
+        color: var(--text);
+      }
+
+      &.checkbox {
+        flex-direction: row;
+        align-items: center;
+        gap: 0.5rem;
+      }
+    }
+
+    .error-msg {
+      color: var(--danger, #c0392b);
+      font-size: 0.85rem;
+      margin-bottom: 0.5rem;
+    }
+  }
+
+  .url-value {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    word-break: break-all;
+  }
+
+  .pill.accent {
+    background: rgba(34, 199, 255, 0.12);
+    border-color: rgba(34, 199, 255, 0.35);
+    color: var(--primary);
+  }
+
+  .success-msg {
+    margin-top: 0.75rem;
+    color: var(--success, #1e8a4c);
+    font-size: 0.85rem;
+  }
+
   // Base pill style
   .pill {
     align-items: center;

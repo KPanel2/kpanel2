@@ -249,7 +249,9 @@ def show_token_reset_prompt(registration_code: str) -> None:
         print(message)
 
 
-def _chromium_kiosk_flags(user_data_dir: str) -> list[str]:
+def _chromium_kiosk_flags(
+    user_data_dir: str, *, remote_debugging_port: int | None = None
+) -> list[str]:
     configured = os.getenv("KPANEL_CHROMIUM_FLAGS")
     if configured is not None and configured.strip():
         extra_flags = shlex.split(configured.strip())
@@ -257,7 +259,7 @@ def _chromium_kiosk_flags(user_data_dir: str) -> list[str]:
         # Recent Pi OS Chromium builds often render a black screen with --disable-gpu.
         extra_flags = ["--disable-gpu-compositing", "--use-gl=egl"]
 
-    return [
+    flags = [
         "--kiosk",
         f"--user-data-dir={user_data_dir}",
         "--no-first-run",
@@ -267,9 +269,32 @@ def _chromium_kiosk_flags(user_data_dir: str) -> list[str]:
         "--overscroll-history-navigation=0",
         *extra_flags,
     ]
+    if remote_debugging_port is not None:
+        flags.extend(
+            [
+                f"--remote-debugging-port={remote_debugging_port}",
+                "--remote-debugging-address=127.0.0.1",
+            ]
+        )
+    return flags
 
 
-def launch_kiosk(url: str) -> None:
+def _ephemeral_localhost_port() -> int:
+    import socket
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+
+
+def launch_kiosk(
+    url: str,
+    *,
+    browser_auth: dict | None = None,
+    fetch_bootstrap=None,
+    open_seeder=None,
+    remote_debugging_port: int | None = None,
+) -> None:
     global _kiosk_proc, _kiosk_url
 
     normalized_url = (url or "").strip()
@@ -286,12 +311,46 @@ def launch_kiosk(url: str) -> None:
 
     stop_kiosk()
 
+    from kpanel_client.ha_bootstrap import fetch_ha_bootstrap, parse_browser_auth
+
+    auth = parse_browser_auth(browser_auth) if browser_auth else None
+    bootstrap = None
+    if auth is not None:
+        fetch = fetch_bootstrap or fetch_ha_bootstrap
+        bootstrap = fetch(auth)
+        # Keep KPanel's resolved URL (room/household templates). Bootstrap is
+        # for hassTokens only — do not replace navigation with dashboard_url.
+
     print(f"Launching kiosk for URL: {normalized_url}")
     browser_command = shutil.which("chromium") or shutil.which("chromium-browser") or "chromium-browser"
     user_data_dir = os.getenv("KPANEL_CHROMIUM_PROFILE_DIR", "/var/lib/kpanel-client/chromium-profile")
     os.makedirs(user_data_dir, exist_ok=True)
+
+    remote_port: int | None = None
+    start_url = normalized_url
+    if auth is not None and bootstrap is not None and bootstrap.ok and bootstrap.hass_tokens:
+        remote_port = remote_debugging_port
+        if remote_port is None:
+            remote_port = _ephemeral_localhost_port()
+        start_url = "about:blank"
+
     _kiosk_proc = subprocess.Popen(
-        [browser_command, *_chromium_kiosk_flags(user_data_dir), normalized_url],
+        [
+            browser_command,
+            *_chromium_kiosk_flags(user_data_dir, remote_debugging_port=remote_port),
+            start_url,
+        ],
         start_new_session=True,
     )
     _kiosk_url = normalized_url
+
+    if remote_port is not None and bootstrap is not None and bootstrap.hass_tokens:
+        try:
+            connect = open_seeder or __import__(
+                "kpanel_client.cdp_connect", fromlist=["open_cdp_seeder"]
+            ).open_cdp_seeder
+            seeder = connect(remote_port)
+            seeder.seed_hass_tokens(bootstrap.hass_tokens)
+            seeder.navigate(normalized_url)
+        except Exception as err:  # noqa: BLE001 — fall back to URL-only kiosk
+            print(f"CDP hassTokens seed failed; continuing without injection: {err}")

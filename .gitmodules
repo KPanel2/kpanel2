@@ -1,0 +1,6 @@
+[submodule "integrations/ha-kpanel-dashboard"]
+	path = integrations/ha-kpanel-dashboard
+	url = https://github.com/KPanel2/ha-kpanel-dashboard
+[submodule ".ai-agent-skills"]
+	path = .ai-agent-skills
+	url = https://github.com/kumpeapps/ai-agent-skills.git

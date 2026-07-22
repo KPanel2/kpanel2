@@ -31,6 +31,9 @@ export class DeviceCardComponent implements OnChanges {
   urlMode = 'custom';
   householdUrlId: number | null = null;
   tempUrlInput = '';
+  haBootstrapUrl = '';
+  haBindingSecret = '';
+  clearHaBinding = false;
 
   saving = false;
   error = '';
@@ -45,6 +48,9 @@ export class DeviceCardComponent implements OnChanges {
     this.roomId = this.device?.room_id ?? null;
     this.urlMode = this.device?.url_mode ?? 'custom';
     this.householdUrlId = this.device?.household_url_id ?? null;
+    this.haBootstrapUrl = this.device?.ha_bootstrap_url ?? '';
+    this.haBindingSecret = '';
+    this.clearHaBinding = false;
     // Infer household from current room assignment
     this.selectedHouseholdId = this.device?.room_id
       ? (this.households.find(h => (h.rooms ?? []).some(r => r.id === this.device.room_id))?.id ?? null)
@@ -124,6 +130,18 @@ export class DeviceCardComponent implements OnChanges {
       payload['target_url'] = this.targetUrl.trim() || null;
     } else {
       payload['household_url_id'] = this.householdUrlId;
+    }
+    if (this.clearHaBinding) {
+      payload['clear_ha_binding'] = true;
+    } else {
+      const bootstrap = this.haBootstrapUrl.trim();
+      if (bootstrap) {
+        payload['ha_bootstrap_url'] = bootstrap;
+      }
+      const secret = this.haBindingSecret.trim();
+      if (secret) {
+        payload['ha_binding_secret'] = secret;
+      }
     }
 
     this.deviceService.updateDevice(this.device.registration_code, payload).subscribe({

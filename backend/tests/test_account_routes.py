@@ -415,6 +415,102 @@ def test_account_update_device_clear_room(client, db_session, dev_auth_enabled):
     assert device.room_id is None
 
 
+def test_account_update_device_ha_binding(client, db_session, dev_auth_enabled):
+    user = seed_user(db_session)
+    device = seed_device(
+        db_session,
+        registration_code="KPANEL-HAUPD",
+        device_id="kpanel-haupd",
+        user_id=user.id,
+        target_url="https://ha.example/lovelace/kiosk",
+    )
+
+    response = client.patch(
+        "/api/v1/account/devices/KPANEL-HAUPD",
+        json={
+            "ha_bootstrap_url": "https://ha.example/api/kpanel_dashboard/bootstrap",
+            "ha_binding_secret": "secret-one",
+        },
+        headers=_dev_headers(user.email),
+    )
+
+    assert response.status_code == 200
+    body = response.json()["device"]
+    assert body["ha_bootstrap_url"] == "https://ha.example/api/kpanel_dashboard/bootstrap"
+    assert body["has_ha_binding"] is True
+    assert body["has_local_ha_binding"] is True
+    assert body["ha_binding_source"] == "device"
+    assert body["effective_ha_bootstrap_url"] == "https://ha.example/api/kpanel_dashboard/bootstrap"
+    assert "ha_binding_secret" not in body
+
+    db_session.refresh(device)
+    assert device.ha_binding_secret == "secret-one"
+
+    clear = client.patch(
+        "/api/v1/account/devices/KPANEL-HAUPD",
+        json={"clear_ha_binding": True},
+        headers=_dev_headers(user.email),
+    )
+    assert clear.status_code == 200
+    assert clear.json()["device"]["has_ha_binding"] is False
+    db_session.refresh(device)
+    assert device.ha_bootstrap_url is None
+    assert device.ha_binding_secret is None
+
+
+def test_account_update_profile_ha_binding(client, db_session, dev_auth_enabled):
+    user = seed_user(db_session, email="ha-profile@example.com")
+
+    response = client.patch(
+        "/api/v1/account/profile",
+        json={
+            "ha_bootstrap_url": "https://ha.example/api/kpanel_dashboard/bootstrap",
+            "ha_binding_secret": "account-secret",
+        },
+        headers=_dev_headers(user.email),
+    )
+
+    assert response.status_code == 200
+    body = response.json()["user"]
+    assert body["ha_bootstrap_url"] == "https://ha.example/api/kpanel_dashboard/bootstrap"
+    assert body["has_ha_binding"] is True
+    assert "ha_binding_secret" not in body
+
+    db_session.refresh(user)
+    assert user.ha_binding_secret == "account-secret"
+
+    clear = client.patch(
+        "/api/v1/account/profile",
+        json={"clear_ha_binding": True},
+        headers=_dev_headers(user.email),
+    )
+    assert clear.status_code == 200
+    assert clear.json()["user"]["has_ha_binding"] is False
+
+
+def test_device_serialize_inherits_account_ha_binding(client, db_session, dev_auth_enabled):
+    user = seed_user(db_session, email="ha-inherit@example.com")
+    user.ha_bootstrap_url = "https://ha.example/api/kpanel_dashboard/bootstrap"
+    user.ha_binding_secret = "account-secret"
+    db_session.commit()
+    seed_device(
+        db_session,
+        registration_code="KPANEL-HAINH",
+        device_id="kpanel-hainh",
+        user_id=user.id,
+        target_url="https://panel.example.com",
+    )
+
+    response = client.get("/api/v1/account/devices", headers=_dev_headers(user.email))
+    assert response.status_code == 200
+    device = response.json()["devices"][0]
+    assert device["has_ha_binding"] is True
+    assert device["has_local_ha_binding"] is False
+    assert device["ha_binding_source"] == "account"
+    assert device["effective_ha_bootstrap_url"] == "https://ha.example/api/kpanel_dashboard/bootstrap"
+    assert device["ha_bootstrap_url"] is None
+
+
 # ---------- DELETE /api/v1/account/devices/{registration_code} ----------
 
 

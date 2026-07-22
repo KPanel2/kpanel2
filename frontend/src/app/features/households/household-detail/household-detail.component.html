@@ -72,6 +72,29 @@
                                 placeholder="Default (owner's timezone)">
           </app-timezone-select>
         </label>
+        <fieldset class="ha-binding">
+          <legend>Home Assistant auth bridge</legend>
+          <p class="hint">
+            Shared by devices assigned to rooms in this household, unless a room or
+            device override is set. Priority: account → household → room → device.
+          </p>
+          <label class="field">
+            <span>Bootstrap URL</span>
+            <input type="url" [(ngModel)]="haBootstrapUrl" name="haBootstrapUrl"
+                   placeholder="https://ha.example/api/kpanel_dashboard/bootstrap"
+                   [disabled]="clearHaBinding" />
+          </label>
+          <label class="field">
+            <span>Binding secret</span>
+            <input type="password" [(ngModel)]="haBindingSecret" name="haBindingSecret"
+                   [placeholder]="household.has_ha_binding ? 'Leave blank to keep current secret' : 'Paste binding secret from HA'"
+                   [disabled]="clearHaBinding" autocomplete="new-password" />
+          </label>
+          <label class="field checkbox" *ngIf="household.has_ha_binding">
+            <input type="checkbox" [(ngModel)]="clearHaBinding" name="clearHaBinding" />
+            <span>Clear household HA binding</span>
+          </label>
+        </fieldset>
         <p *ngIf="settingsError" class="error-msg">{{ settingsError }}</p>
         <p *ngIf="settingsSuccess" class="success-msg">{{ settingsSuccess }}</p>
         <div class="btn-row">

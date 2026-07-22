@@ -76,6 +76,7 @@ def startup() -> None:
     Base.metadata.create_all(bind=engine)
     _ensure_device_registration_columns()
     _ensure_user_columns()
+    _ensure_household_columns()
     _ensure_room_columns()
 
 
@@ -198,6 +199,10 @@ def _ensure_device_registration_columns() -> None:
         statements.append("ALTER TABLE device_registrations ADD COLUMN temp_url_revert_household_url_id INT")
     if "temp_url_set_at" not in columns:
         statements.append("ALTER TABLE device_registrations ADD COLUMN temp_url_set_at DATETIME")
+    if "ha_bootstrap_url" not in columns:
+        statements.append("ALTER TABLE device_registrations ADD COLUMN ha_bootstrap_url VARCHAR(2048)")
+    if "ha_binding_secret" not in columns:
+        statements.append("ALTER TABLE device_registrations ADD COLUMN ha_binding_secret VARCHAR(255)")
 
     if not statements:
         return
@@ -217,6 +222,31 @@ def _ensure_user_columns() -> None:
     statements: list[str] = []
     if "timezone" not in columns:
         statements.append("ALTER TABLE users ADD COLUMN timezone VARCHAR(64) NOT NULL DEFAULT 'America/Chicago'")
+    if "ha_bootstrap_url" not in columns:
+        statements.append("ALTER TABLE users ADD COLUMN ha_bootstrap_url VARCHAR(2048)")
+    if "ha_binding_secret" not in columns:
+        statements.append("ALTER TABLE users ADD COLUMN ha_binding_secret VARCHAR(255)")
+
+    if not statements:
+        return
+
+    with engine.begin() as connection:
+        for statement in statements:
+            connection.execute(text(statement))
+
+
+def _ensure_household_columns() -> None:
+    inspector = inspect(engine)
+    try:
+        columns = {column["name"] for column in inspector.get_columns("households")}
+    except Exception:
+        return
+
+    statements: list[str] = []
+    if "ha_bootstrap_url" not in columns:
+        statements.append("ALTER TABLE households ADD COLUMN ha_bootstrap_url VARCHAR(2048)")
+    if "ha_binding_secret" not in columns:
+        statements.append("ALTER TABLE households ADD COLUMN ha_binding_secret VARCHAR(255)")
 
     if not statements:
         return
@@ -236,6 +266,10 @@ def _ensure_room_columns() -> None:
     statements: list[str] = []
     if "slug" not in columns:
         statements.append("ALTER TABLE rooms ADD COLUMN slug VARCHAR(255)")
+    if "ha_bootstrap_url" not in columns:
+        statements.append("ALTER TABLE rooms ADD COLUMN ha_bootstrap_url VARCHAR(2048)")
+    if "ha_binding_secret" not in columns:
+        statements.append("ALTER TABLE rooms ADD COLUMN ha_binding_secret VARCHAR(255)")
 
     if not statements:
         return
@@ -373,6 +407,7 @@ def resolve_device(
         device.client_version = req.client_version.strip()
     db.commit()
 
+    from app.browser_auth import build_browser_auth_payload
     from app.households import resolve_device_url
 
     resolved_url = resolve_device_url(device, db)
@@ -385,7 +420,7 @@ def resolve_device(
         force_update=device.pending_action == "update",
     )
 
-    return {
+    payload = {
         "status": "configured",
         "device_id": req.device_id,
         "registration_code": device.registration_code,
@@ -394,6 +429,10 @@ def resolve_device(
         "timezone": _effective_device_timezone(device, db),
         "update": update_policy,
     }
+    browser_auth = build_browser_auth_payload(device, db)
+    if browser_auth is not None:
+        payload["browser_auth"] = browser_auth
+    return payload
 
 
 @app.post("/api/v1/devices/{device_id}/update-events")
@@ -454,13 +493,14 @@ def get_device_config(
     if device is None:
         return {"status": "unbound"}
 
+    from app.browser_auth import build_browser_auth_payload
     from app.households import resolve_device_url
 
     resolved_url = resolve_device_url(device, db)
     if not resolved_url:
         return {"status": "pending", "registration_code": device.registration_code}
 
-    return {
+    payload = {
         "status": "configured",
         "device_id": device_id,
         "registration_code": device.registration_code,
@@ -468,3 +508,7 @@ def get_device_config(
         "pending_action": device.pending_action,
         "timezone": _effective_device_timezone(device, db),
     }
+    browser_auth = build_browser_auth_payload(device, db)
+    if browser_auth is not None:
+        payload["browser_auth"] = browser_auth
+    return payload

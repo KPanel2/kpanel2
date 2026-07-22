@@ -83,7 +83,32 @@ describe('RoomManagerComponent', () => {
       2,
       0,
       null,
-      true
+      true,
+      {}
+    );
+  });
+
+  it('saves room HA binding fields', () => {
+    householdService.updateRoom.and.returnValue(of({} as Room));
+    const room = household.rooms[0];
+
+    component.startEdit(room);
+    component.haBootstrapUrl = 'https://ha.example/api/kpanel_dashboard/bootstrap';
+    component.haBindingSecret = 'room-secret';
+    component.saveEdit();
+
+    expect(householdService.updateRoom).toHaveBeenCalledWith(
+      1,
+      3,
+      'Kitchen',
+      2,
+      0,
+      'kitchen',
+      false,
+      {
+        ha_bootstrap_url: 'https://ha.example/api/kpanel_dashboard/bootstrap',
+        ha_binding_secret: 'room-secret',
+      }
     );
   });
 

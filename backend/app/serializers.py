@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 
 from app.client_updates import get_latest_for_channel
+from app.ha_binding import serialize_device_ha_binding, serialize_local_ha_binding
 from app.models import DeviceRegistration, User, UserIdentity
 from app.session_auth import to_iso
 
@@ -44,6 +45,7 @@ def serialize_device(device: DeviceRegistration, db: Session | None = None) -> d
         "temp_url_set_at": to_iso(device.temp_url_set_at),
         "resolved_url": resolve_device_url(device, db) if db is not None else None,
         "latest_client_version": get_latest_for_channel(device.client_version or "")[0] or None,
+        **serialize_device_ha_binding(device, db),
     }
 
 
@@ -58,6 +60,7 @@ def serialize_user(
         "email": user.email,
         "display_name": user.display_name,
         "timezone": user.timezone or "America/Chicago",
+        **serialize_local_ha_binding(user),
         "identities": [serialize_identity(identity) for identity in identities],
         "devices": [serialize_device(device, db) for device in devices],
     }

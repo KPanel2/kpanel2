@@ -13,6 +13,8 @@ class Household(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     timezone: Mapped[str | None] = mapped_column(String(64), nullable=True)
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    ha_bootstrap_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    ha_binding_secret: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
@@ -49,6 +51,8 @@ class Room(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     slug: Mapped[str | None] = mapped_column(String(255), nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    ha_bootstrap_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    ha_binding_secret: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
@@ -72,6 +76,8 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False)
     display_name: Mapped[str] = mapped_column(String(255), nullable=False)
     timezone: Mapped[str] = mapped_column(String(64), nullable=False, default="America/Chicago")
+    ha_bootstrap_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    ha_binding_secret: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
@@ -122,6 +128,8 @@ class DeviceRegistration(Base):
     temp_url_revert_mode: Mapped[str | None] = mapped_column(String(16), nullable=True)
     temp_url_revert_household_url_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     temp_url_set_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ha_bootstrap_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    ha_binding_secret: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 

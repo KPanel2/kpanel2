@@ -24,6 +24,9 @@ export class RoomManagerComponent {
   editSlug = '';
   editFloorId: number | null = null;
   editOrder = 0;
+  haBootstrapUrl = '';
+  haBindingSecret = '';
+  clearHaBinding = false;
   error = '';
 
   constructor(private householdService: HouseholdService) {}
@@ -65,6 +68,9 @@ export class RoomManagerComponent {
     this.editSlug = room.slug ?? '';
     this.editFloorId = room.floor_id;
     this.editOrder = room.sort_order;
+    this.haBootstrapUrl = room.ha_bootstrap_url ?? '';
+    this.haBindingSecret = '';
+    this.clearHaBinding = false;
     this.error = '';
   }
 
@@ -72,6 +78,16 @@ export class RoomManagerComponent {
     if (!this.editingRoom) return;
     const slug = this.editSlug.trim();
     const clearSlug = slug === '' && !!this.editingRoom.slug;
+    const ha = this.clearHaBinding
+      ? { clear_ha_binding: true }
+      : {
+          ...(this.haBootstrapUrl.trim()
+            ? { ha_bootstrap_url: this.haBootstrapUrl.trim() }
+            : {}),
+          ...(this.haBindingSecret.trim()
+            ? { ha_binding_secret: this.haBindingSecret.trim() }
+            : {}),
+        };
     this.householdService
       .updateRoom(
         this.household.id,
@@ -80,7 +96,8 @@ export class RoomManagerComponent {
         this.editFloorId,
         this.editOrder,
         clearSlug ? null : slug || null,
-        clearSlug
+        clearSlug,
+        ha
       )
       .subscribe({
         next: () => {
