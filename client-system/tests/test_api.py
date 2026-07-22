@@ -134,6 +134,25 @@ def test_resolve_registration_configured(post, client):
 
 
 @patch("kpanel_client.api.requests.post")
+def test_resolve_registration_with_browser_auth(post, client):
+    post.return_value = make_requests_response(
+        200,
+        {
+            "status": "configured",
+            "configured_url": "https://ha.example/lovelace/kiosk",
+            "browser_auth": {
+                "type": "ha_hass_tokens",
+                "bootstrap_url": "https://ha.example/api/kpanel_dashboard/bootstrap",
+                "binding_secret": "secret",
+            },
+        },
+    )
+    result = client.resolve_registration("dev-1", "KPANEL-ABC")
+    assert result.browser_auth["type"] == "ha_hass_tokens"
+    assert result.browser_auth["binding_secret"] == "secret"
+
+
+@patch("kpanel_client.api.requests.post")
 def test_resolve_registration_pending(post, client):
     post.return_value = make_requests_response(200, {"status": "pending"})
     result = client.resolve_registration("dev-1", "KPANEL-ABC")

@@ -41,6 +41,9 @@ export class HouseholdDetailComponent implements OnChanges {
   // Settings edit
   editingName = '';
   editingTz = '';
+  haBootstrapUrl = '';
+  haBindingSecret = '';
+  clearHaBinding = false;
   savingSettings = false;
   settingsError = '';
   settingsSuccess = '';
@@ -50,6 +53,9 @@ export class HouseholdDetailComponent implements OnChanges {
   ngOnChanges(): void {
     this.editingName = this.household?.name ?? '';
     this.editingTz = this.household?.timezone ?? '';
+    this.haBootstrapUrl = this.household?.ha_bootstrap_url ?? '';
+    this.haBindingSecret = '';
+    this.clearHaBinding = false;
   }
 
   get isOwner(): boolean {
@@ -74,11 +80,29 @@ export class HouseholdDetailComponent implements OnChanges {
   saveSettings(): void {
     this.savingSettings = true;
     this.settingsError = '';
+    const ha = this.clearHaBinding
+      ? { clear_ha_binding: true }
+      : {
+          ...(this.haBootstrapUrl.trim()
+            ? { ha_bootstrap_url: this.haBootstrapUrl.trim() }
+            : {}),
+          ...(this.haBindingSecret.trim()
+            ? { ha_binding_secret: this.haBindingSecret.trim() }
+            : {}),
+        };
     this.householdService
-      .updateHousehold(this.household.id, this.editingName.trim(), this.editingTz || undefined)
+      .updateHousehold(this.household.id, this.editingName.trim(), this.editingTz || undefined, ha)
       .subscribe({
         next: updated => {
-          this.household = { ...this.household, name: updated.name, timezone: updated.timezone };
+          this.household = {
+            ...this.household,
+            name: updated.name,
+            timezone: updated.timezone,
+            ha_bootstrap_url: updated.ha_bootstrap_url,
+            has_ha_binding: updated.has_ha_binding,
+          };
+          this.haBindingSecret = '';
+          this.clearHaBinding = false;
           this.savingSettings = false;
           this.settingsSuccess = 'Settings saved';
           setTimeout(() => (this.settingsSuccess = ''), 3000);

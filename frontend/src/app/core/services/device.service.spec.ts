@@ -27,6 +27,8 @@ describe('DeviceService', () => {
     latest_client_version: null,
     registered_at: '2026-01-01T00:00:00Z',
     last_seen: null,
+    ha_bootstrap_url: null,
+    has_ha_binding: false,
   };
 
   beforeEach(() => {

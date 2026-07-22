@@ -7,6 +7,7 @@ Deploy touchscreen Raspberry Pi panels that auto-configure by registration code,
 - `backend/`: FastAPI API for OIDC login, account linking, device ownership, and config resolution.
 - `frontend/`: User-facing account portal for sign-in, account creation, provider linking, and panel claiming.
 - `client-system/`: Raspberry Pi runtime service that handles network state, self-registration, and kiosk browser launching.
+- `integrations/ha-kpanel-dashboard/`: HACS Home Assistant integration for kiosk token bootstrap (see [ha-kpanel-auth-bridge.md](ha-kpanel-auth-bridge.md)).
 - `infra/caddy/`: Local TLS reverse-proxy config for HTTPS enforcement testing.
 
 ## Reverse proxy model

@@ -459,6 +459,63 @@ def test_update_household_no_fields(client, db_session, dev_auth_enabled):
     assert response.status_code == 400
 
 
+def test_update_household_ha_binding(client, db_session, dev_auth_enabled):
+    user = seed_user(db_session)
+    household = seed_household(db_session, user)
+
+    response = client.patch(
+        f"/api/v1/households/{household.id}",
+        json={
+            "ha_bootstrap_url": "https://ha.example/api/kpanel_dashboard/bootstrap",
+            "ha_binding_secret": "household-secret",
+        },
+        headers=_dev_headers(user.email),
+    )
+
+    assert response.status_code == 200
+    body = response.json()["household"]
+    assert body["has_ha_binding"] is True
+    assert body["ha_bootstrap_url"] == "https://ha.example/api/kpanel_dashboard/bootstrap"
+    assert "ha_binding_secret" not in body
+
+    clear = client.patch(
+        f"/api/v1/households/{household.id}",
+        json={"clear_ha_binding": True},
+        headers=_dev_headers(user.email),
+    )
+    assert clear.status_code == 200
+    assert clear.json()["household"]["has_ha_binding"] is False
+
+
+def test_update_room_ha_binding(client, db_session, dev_auth_enabled):
+    user = seed_user(db_session)
+    household = seed_household(db_session, user)
+    room = seed_room(db_session, household_id=household.id, name="Kitchen")
+
+    response = client.patch(
+        f"/api/v1/households/{household.id}/rooms/{room.id}",
+        json={
+            "ha_bootstrap_url": "https://ha.example/api/kpanel_dashboard/bootstrap",
+            "ha_binding_secret": "room-secret",
+        },
+        headers=_dev_headers(user.email),
+    )
+
+    assert response.status_code == 200
+    body = response.json()["room"]
+    assert body["has_ha_binding"] is True
+    assert body["ha_bootstrap_url"] == "https://ha.example/api/kpanel_dashboard/bootstrap"
+    assert "ha_binding_secret" not in body
+
+    clear = client.patch(
+        f"/api/v1/households/{household.id}/rooms/{room.id}",
+        json={"clear_ha_binding": True},
+        headers=_dev_headers(user.email),
+    )
+    assert clear.status_code == 200
+    assert clear.json()["room"]["has_ha_binding"] is False
+
+
 def test_add_duplicate_member(client, db_session, dev_auth_enabled):
     owner = seed_user(db_session, user_id=1, email="owner@example.com")
     member = seed_user(db_session, user_id=2, email="member@example.com")

@@ -1,10 +1,15 @@
 from app import main as main_module
 
 
-def test_ensure_room_columns_noop_when_slug_present(monkeypatch):
+def test_ensure_room_columns_noop_when_all_present(monkeypatch):
     class FakeInspector:
         def get_columns(self, _table):
-            return [{"name": "id"}, {"name": "slug"}]
+            return [
+                {"name": "id"},
+                {"name": "slug"},
+                {"name": "ha_bootstrap_url"},
+                {"name": "ha_binding_secret"},
+            ]
 
     monkeypatch.setattr(main_module, "inspect", lambda _engine: FakeInspector())
     main_module._ensure_room_columns()
@@ -19,7 +24,7 @@ def test_ensure_room_columns_skips_missing_table(monkeypatch):
     main_module._ensure_room_columns()
 
 
-def test_ensure_room_columns_adds_slug(monkeypatch):
+def test_ensure_room_columns_adds_missing(monkeypatch):
     class FakeInspector:
         def get_columns(self, _table):
             return [{"name": "id"}, {"name": "name"}]
@@ -44,5 +49,8 @@ def test_ensure_room_columns_adds_slug(monkeypatch):
     monkeypatch.setattr(main_module, "engine", FakeEngine())
     main_module._ensure_room_columns()
 
-    assert len(executed) == 1
-    assert "slug" in executed[0]
+    assert len(executed) == 3
+    joined = " ".join(executed)
+    assert "slug" in joined
+    assert "ha_bootstrap_url" in joined
+    assert "ha_binding_secret" in joined

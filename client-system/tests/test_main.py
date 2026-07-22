@@ -65,7 +65,10 @@ def run_context(tmp_path, monkeypatch, stop_after_two_loops):
     monkeypatch.setattr("kpanel_client.main.show_wifi_setup_prompt", lambda: record("show_wifi"))
     monkeypatch.setattr("kpanel_client.main.show_token_reset_prompt", lambda code: record("show_token_reset", code))
     monkeypatch.setattr("kpanel_client.main.stop_kiosk", lambda: record("stop_kiosk"))
-    monkeypatch.setattr("kpanel_client.main.launch_kiosk", lambda url: record("launch_kiosk", url))
+    monkeypatch.setattr(
+        "kpanel_client.main.launch_kiosk",
+        lambda url, **kwargs: record("launch_kiosk", url),
+    )
     monkeypatch.setattr("kpanel_client.main.stop_hotspot", lambda iface: record("stop_hotspot", iface))
     def mock_run_pending_action(*args, **kwargs):
         action = kwargs.get("action")

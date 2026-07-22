@@ -217,7 +217,10 @@ def run() -> None:
                 continue
 
         hide_registration_prompt()
-        launch_kiosk(resolved.configured_url)
+        launch_kiosk(
+            resolved.configured_url,
+            browser_auth=resolved.browser_auth,
+        )
 
         if resolved.timezone and resolved.timezone != state.applied_timezone:
             _apply_timezone(resolved.timezone)

@@ -16,6 +16,8 @@ export interface Room {
   sort_order: number;
   created_at: string;
   updated_at: string;
+  ha_bootstrap_url?: string | null;
+  has_ha_binding?: boolean;
 }
 
 export interface HouseholdUrl {
@@ -43,6 +45,8 @@ export interface Household {
   owner_id: number;
   created_at: string;
   updated_at: string;
+  ha_bootstrap_url?: string | null;
+  has_ha_binding?: boolean;
   floors: Floor[];
   rooms: Room[];
   urls: HouseholdUrl[];

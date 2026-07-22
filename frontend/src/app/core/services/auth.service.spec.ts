@@ -39,7 +39,7 @@ describe('AuthService', () => {
     originalAppId = environment.logto.appId;
     environment.logto.appId = '';
 
-    api = jasmine.createSpyObj<ApiService>('ApiService', ['get', 'post']);
+    api = jasmine.createSpyObj<ApiService>('ApiService', ['get', 'post', 'patch']);
     oidcRuntime = { getService: jasmine.createSpy('getService').and.returnValue(null) };
     logtoOAuth = jasmine.createSpyObj<LogtoOAuthService>('LogtoOAuthService', [
       'refreshOidcSession',
@@ -264,6 +264,30 @@ describe('AuthService', () => {
 
     service.loadSession().subscribe(session => {
       expect(session.status).toBe('access_denied');
+      done();
+    });
+  });
+
+  it('updates account HA binding via profile patch', (done) => {
+    const updated = {
+      ...AUTHENTICATED,
+      user: {
+        ...AUTHENTICATED.user!,
+        ha_bootstrap_url: 'https://ha.example/api/kpanel_dashboard/bootstrap',
+        has_ha_binding: true,
+      },
+    };
+    api.patch.and.returnValue(of(updated));
+
+    service.updateHaBinding({
+      ha_bootstrap_url: 'https://ha.example/api/kpanel_dashboard/bootstrap',
+      ha_binding_secret: 'secret',
+    }).subscribe(session => {
+      expect(api.patch).toHaveBeenCalledWith('/api/v1/account/profile', {
+        ha_bootstrap_url: 'https://ha.example/api/kpanel_dashboard/bootstrap',
+        ha_binding_secret: 'secret',
+      });
+      expect(session.user?.has_ha_binding).toBeTrue();
       done();
     });
   });

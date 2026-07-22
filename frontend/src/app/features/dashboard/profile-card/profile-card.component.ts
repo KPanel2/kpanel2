@@ -1,5 +1,6 @@
-import { Component, Input, OnChanges, OnInit } from '@angular/core';
+import { Component, EventEmitter, Input, OnChanges, OnInit, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { AuthService } from '../../../core/services/auth.service';
 import { User } from '../../../core/models/session.model';
@@ -17,18 +18,25 @@ const ACCOUNT_CENTER_SUCCESS_MESSAGES: Record<string, string> = {
 @Component({
   selector: 'app-profile-card',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   templateUrl: './profile-card.component.html',
   styleUrls: ['./profile-card.component.scss'],
 })
 export class ProfileCardComponent implements OnChanges, OnInit {
   @Input() user!: User;
+  @Output() changed = new EventEmitter<void>();
 
   success = '';
+  error = '';
   accountCenterAvailable = false;
   profileManageUrl = '';
   emailManageUrl = '';
   securityManageUrl = '';
+
+  haBootstrapUrl = '';
+  haBindingSecret = '';
+  clearHaBinding = false;
+  savingHa = false;
 
   constructor(private auth: AuthService, private sanitizer: DomSanitizer) {}
 
@@ -62,6 +70,50 @@ export class ProfileCardComponent implements OnChanges, OnInit {
   }
 
   ngOnChanges(): void {
-    // user input drives the read-only view
+    this.haBootstrapUrl = this.user?.ha_bootstrap_url ?? '';
+    this.haBindingSecret = '';
+    this.clearHaBinding = false;
+  }
+
+  saveHaBinding(): void {
+    this.savingHa = true;
+    this.error = '';
+    if (this.clearHaBinding) {
+      this.auth.updateHaBinding({ clear_ha_binding: true }).subscribe({
+        next: () => this.onHaSaved(),
+        error: (e: Error) => this.onHaError(e),
+      });
+      return;
+    }
+
+    const bootstrap = this.haBootstrapUrl.trim();
+    const secret = this.haBindingSecret.trim();
+    if (!bootstrap && !secret) {
+      this.savingHa = false;
+      this.error = 'Enter a bootstrap URL and/or binding secret, or clear the binding.';
+      return;
+    }
+
+    this.auth.updateHaBinding({
+      ...(bootstrap ? { ha_bootstrap_url: bootstrap } : {}),
+      ...(secret ? { ha_binding_secret: secret } : {}),
+    }).subscribe({
+      next: () => this.onHaSaved(),
+      error: (e: Error) => this.onHaError(e),
+    });
+  }
+
+  private onHaSaved(): void {
+    this.savingHa = false;
+    this.haBindingSecret = '';
+    this.clearHaBinding = false;
+    this.success = 'HA binding saved';
+    setTimeout(() => (this.success = ''), 3000);
+    this.changed.emit();
+  }
+
+  private onHaError(e: Error): void {
+    this.savingHa = false;
+    this.error = e.message;
   }
 }

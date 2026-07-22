@@ -5,6 +5,7 @@ from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
 from app.db import get_db_session
+from app.ha_binding import apply_ha_binding_update, normalize_ha_bootstrap_url, serialize_local_ha_binding
 from app.kumpe_auth import require_user_with_permission
 from app.kumpe_permissions import Permissions
 from app.models import (
@@ -32,6 +33,14 @@ class HouseholdCreateRequest(BaseModel):
 class HouseholdUpdateRequest(BaseModel):
     name: str | None = None
     timezone: str | None = None
+    ha_bootstrap_url: str | None = None
+    ha_binding_secret: str | None = None
+    clear_ha_binding: bool = False
+
+    @field_validator("ha_bootstrap_url", mode="before")
+    @classmethod
+    def _validate_ha_bootstrap_url(cls, v: object) -> object:
+        return normalize_ha_bootstrap_url(v)
 
 
 class FloorCreateRequest(BaseModel):
@@ -58,6 +67,14 @@ class RoomUpdateRequest(BaseModel):
     clear_floor: bool = False
     slug: str | None = None
     clear_slug: bool = False
+    ha_bootstrap_url: str | None = None
+    ha_binding_secret: str | None = None
+    clear_ha_binding: bool = False
+
+    @field_validator("ha_bootstrap_url", mode="before")
+    @classmethod
+    def _validate_ha_bootstrap_url(cls, v: object) -> object:
+        return normalize_ha_bootstrap_url(v)
 
 
 class HouseholdUrlCreateRequest(BaseModel):
@@ -116,6 +133,7 @@ def _serialize_room(room: Room) -> dict:
         "name": room.name,
         "slug": room.slug,
         "sort_order": room.sort_order,
+        **serialize_local_ha_binding(room),
     }
 
 
@@ -173,6 +191,7 @@ def _serialize_household(household: Household, db: Session) -> dict:
         "name": household.name,
         "timezone": household.timezone,
         "owner_id": household.owner_id,
+        **serialize_local_ha_binding(household),
         "floors": [_serialize_floor(f) for f in floors],
         "rooms": [_serialize_room(r) for r in rooms],
         "urls": [_serialize_household_url(u) for u in urls],
@@ -362,6 +381,13 @@ def update_household(
     if req.timezone is not None:
         cleaned = req.timezone.strip()
         household.timezone = _validate_timezone(cleaned) if cleaned else None
+        updated = True
+    if apply_ha_binding_update(
+        household,
+        clear_ha_binding=req.clear_ha_binding,
+        ha_bootstrap_url=req.ha_bootstrap_url,
+        ha_binding_secret=req.ha_binding_secret,
+    ):
         updated = True
 
     if not updated:
@@ -690,6 +716,13 @@ def update_room(
         updated = True
     if req.sort_order is not None:
         room.sort_order = req.sort_order
+        updated = True
+    if apply_ha_binding_update(
+        room,
+        clear_ha_binding=req.clear_ha_binding,
+        ha_bootstrap_url=req.ha_bootstrap_url,
+        ha_binding_secret=req.ha_binding_secret,
+    ):
         updated = True
 
     if not updated:

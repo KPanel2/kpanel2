@@ -34,6 +34,20 @@ describe('HouseholdService', () => {
     expect(api.delete).toHaveBeenCalledWith('/api/v1/households/1');
   });
 
+  it('updates household HA binding fields', () => {
+    api.patch.and.returnValue(of({ household: { id: 1, has_ha_binding: true } }));
+    service.updateHousehold(1, 'Home', 'UTC', {
+      ha_bootstrap_url: 'https://ha.example/api/kpanel_dashboard/bootstrap',
+      ha_binding_secret: 'secret',
+    }).subscribe();
+    expect(api.patch).toHaveBeenCalledWith('/api/v1/households/1', {
+      name: 'Home',
+      timezone: 'UTC',
+      ha_bootstrap_url: 'https://ha.example/api/kpanel_dashboard/bootstrap',
+      ha_binding_secret: 'secret',
+    });
+  });
+
   it('manages members', () => {
     api.get.and.returnValue(of({ members: [] }));
     api.post.and.returnValue(of({ member: { id: 1 } }));
@@ -121,6 +135,23 @@ describe('HouseholdService', () => {
       sort_order: 1,
       slug: undefined,
       clear_slug: true,
+    });
+  });
+
+  it('updates room HA binding fields', () => {
+    api.patch.and.returnValue(of({ room: { id: 3, has_ha_binding: true } }));
+    service.updateRoom(1, 3, 'Kitchen', null, 0, null, false, {
+      ha_bootstrap_url: 'https://ha.example/api/kpanel_dashboard/bootstrap',
+      ha_binding_secret: 'room-secret',
+    }).subscribe();
+    expect(api.patch).toHaveBeenCalledWith('/api/v1/households/1/rooms/3', {
+      name: 'Kitchen',
+      floor_id: null,
+      sort_order: 0,
+      slug: null,
+      clear_slug: false,
+      ha_bootstrap_url: 'https://ha.example/api/kpanel_dashboard/bootstrap',
+      ha_binding_secret: 'room-secret',
     });
   });
 });

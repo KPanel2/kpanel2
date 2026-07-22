@@ -27,6 +27,19 @@
         <span class="label">Temp URL</span>
         <span class="pill accent">{{ device.temp_url }}</span>
       </div>
+      <div class="info-row">
+        <span class="label">HA binding</span>
+        <span class="value" *ngIf="device.has_ha_binding">
+          <span class="pill accent">Configured</span>
+          <span class="pill" *ngIf="device.ha_binding_source && device.ha_binding_source !== 'device'">
+            Inherited from {{ device.ha_binding_source }}
+          </span>
+          <span class="url-value" *ngIf="device.effective_ha_bootstrap_url || device.ha_bootstrap_url">
+            {{ device.effective_ha_bootstrap_url || device.ha_bootstrap_url }}
+          </span>
+        </span>
+        <span class="value" *ngIf="!device.has_ha_binding">—</span>
+      </div>
       <div class="info-row" *ngIf="device.timezone">
         <span class="label">Timezone</span>
         <span class="value">{{ device.timezone }}</span>
@@ -147,6 +160,31 @@
           </option>
         </select>
       </label>
+
+      <fieldset class="ha-binding">
+        <legend>Home Assistant auth bridge</legend>
+        <p class="hint">
+          Optional device override. Leave blank to inherit
+          (account → household → room → device). Pair with the KPanel Dashboard HA
+          integration so this panel can bootstrap <code>hassTokens</code> without a login form.
+        </p>
+        <label class="field">
+          <span>Bootstrap URL</span>
+          <input type="url" [(ngModel)]="haBootstrapUrl" name="haBootstrapUrl"
+                 placeholder="https://ha.example/api/kpanel_dashboard/bootstrap"
+                 [disabled]="clearHaBinding" />
+        </label>
+        <label class="field">
+          <span>Binding secret</span>
+          <input type="password" [(ngModel)]="haBindingSecret" name="haBindingSecret"
+                 [placeholder]="device.has_local_ha_binding ? 'Leave blank to keep current secret' : 'Paste binding secret from HA'"
+                 [disabled]="clearHaBinding" autocomplete="new-password" />
+        </label>
+        <label class="field checkbox" *ngIf="device.has_local_ha_binding">
+          <input type="checkbox" [(ngModel)]="clearHaBinding" name="clearHaBinding" />
+          <span>Clear device HA binding (inherit again)</span>
+        </label>
+      </fieldset>
 
       <p *ngIf="error" class="error-msg">{{ error }}</p>
 
