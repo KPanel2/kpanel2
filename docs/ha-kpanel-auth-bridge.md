@@ -72,9 +72,8 @@ If bootstrap/CDP is unavailable:
 | Bootstrap 401 | Binding secret mismatch; re-copy from HA / re-save in portal |
 | Bootstrap 429 | Rate limit (default 30/min per secret); wait or rotate |
 | Bootstrap 503 | User deleted/inactive; re-run config flow |
-| Black / blank Chromium | Existing GPU flags (`KPANEL_CHROMIUM_FLAGS`); unrelated to auth |
-| Tokens work once then expire | Refresh token revoked; call `kpanel_dashboard.rotate_tokens` or reboot after re-bootstrap |
-| Reverse proxy quirks | External URL must match `hassTokens.hassUrl` / `clientId`; set HA external URL correctly |
+| Black / blank Chromium | Existing GPU flags (`KPANEL_CHROMIUM_FLAGS`); or CDP stuck on `about:blank` — update client (≥ page-target CDP) and check logs for `CDP hassTokens seed failed` |
+| Reverse proxy quirks | `hassTokens.hassUrl` / Local base URL must match the panel origin (e.g. `http://172.16.20.24:8123`) |
 
 ## Out of scope (v1)
 
