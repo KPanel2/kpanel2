@@ -26,7 +26,8 @@ def test_cdp_session_seeder_sends_commands():
     seeder.seed_hass_tokens({"access_token": "a", "refresh_token": "b"})
     seeder.navigate("https://ha.example/lovelace/kiosk")
 
-    assert calls[0][0] == "Page.addScriptToEvaluateOnNewDocument"
-    assert "hassTokens" in calls[0][1]["source"]
-    assert ("Page.navigate", {"url": "https://ha.example/lovelace/kiosk"}) in calls
+    assert calls[0] == ("Page.enable", {})
+    assert calls[1][0] == "Page.addScriptToEvaluateOnNewDocument"
+    assert "hassTokens" in calls[1][1]["source"]
     assert ("Page.enable", {}) in calls
+    assert ("Page.navigate", {"url": "https://ha.example/lovelace/kiosk"}) in calls

@@ -28,11 +28,12 @@ class CdpSessionSeeder:
 
     def seed_hass_tokens(self, hass_tokens: dict[str, Any]) -> None:
         script = build_hass_tokens_init_script(hass_tokens)
+        self._send("Page.enable", {})
         self._send(
             "Page.addScriptToEvaluateOnNewDocument",
             {"source": script},
         )
 
     def navigate(self, url: str) -> None:
-        self._send("Page.navigate", {"url": url})
         self._send("Page.enable", {})
+        self._send("Page.navigate", {"url": url})

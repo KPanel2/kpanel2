@@ -147,6 +147,43 @@ def test_launch_kiosk_prefers_room_url_over_bootstrap_dashboard(makedirs, which,
 @patch("kpanel_client.ui.subprocess.Popen")
 @patch("kpanel_client.ui.shutil.which", return_value="/usr/bin/chromium")
 @patch("kpanel_client.ui.os.makedirs")
+def test_launch_kiosk_relaunches_when_cdp_fails(makedirs, which, popen, monkeypatch):
+    monkeypatch.delenv("KPANEL_CHROMIUM_PROFILE_DIR", raising=False)
+    proc = MagicMock()
+    proc.poll.return_value = None
+    popen.return_value = proc
+
+    class _Bootstrap:
+        ok = True
+        hass_tokens = {"access_token": "a", "refresh_token": "r"}
+        dashboard_url = None
+
+    def _boom(_port):
+        raise RuntimeError("cdp down")
+
+    launch_kiosk(
+        "http://172.16.20.24:8123/control-panel/game-room",
+        browser_auth={
+            "type": "ha_hass_tokens",
+            "bootstrap_url": "http://172.16.20.24:8123/api/kpanel_dashboard/bootstrap",
+            "binding_secret": "secret",
+        },
+        fetch_bootstrap=lambda _auth: _Bootstrap(),
+        open_seeder=_boom,
+        remote_debugging_port=9222,
+    )
+
+    assert popen.call_count == 2
+    first_cmd = popen.call_args_list[0].args[0]
+    second_cmd = popen.call_args_list[1].args[0]
+    assert first_cmd[-1] == "about:blank"
+    assert second_cmd[-1] == "http://172.16.20.24:8123/control-panel/game-room"
+    assert not any(flag.startswith("--remote-debugging-port=") for flag in second_cmd)
+
+
+@patch("kpanel_client.ui.subprocess.Popen")
+@patch("kpanel_client.ui.shutil.which", return_value="/usr/bin/chromium")
+@patch("kpanel_client.ui.os.makedirs")
 def test_launch_kiosk_starts_browser(makedirs, which, popen, monkeypatch):
     monkeypatch.delenv("KPANEL_CHROMIUM_PROFILE_DIR", raising=False)
     proc = MagicMock()

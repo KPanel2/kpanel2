@@ -353,4 +353,14 @@ def launch_kiosk(
             seeder.seed_hass_tokens(bootstrap.hass_tokens)
             seeder.navigate(normalized_url)
         except Exception as err:  # noqa: BLE001 — fall back to URL-only kiosk
-            print(f"CDP hassTokens seed failed; continuing without injection: {err}")
+            print(f"CDP hassTokens seed failed; relaunching without injection: {err}")
+            stop_kiosk()
+            _kiosk_proc = subprocess.Popen(
+                [
+                    browser_command,
+                    *_chromium_kiosk_flags(user_data_dir, remote_debugging_port=None),
+                    normalized_url,
+                ],
+                start_new_session=True,
+            )
+            _kiosk_url = normalized_url
